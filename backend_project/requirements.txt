@@ -1,0 +1,12 @@
+fastapi
+pydantic
+uvicorn
+python-multipart
+sqlalchemy
+aiomysql
+cryptography
+pymysql
+opencv-python
+pillow
+pytesseract
+numpy

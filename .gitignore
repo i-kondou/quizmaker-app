@@ -1,0 +1,6 @@
+.env
+./frontend_project/node_modules
+backend_project/backend/__pycache__
+backend_project/backend/db/__pycache__
+backend_project/backend/routers/__pycache__
+mysql_data

@@ -1,0 +1,44 @@
+services:
+  backend:
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - "./backend_project:/app_backend"
+    build:
+      context: .
+      dockerfile: ./backend_project/Dockerfile
+    ports:
+      - "8000:8000"
+
+  db:
+    image: mysql:9.2
+    platform: linux/x86_64
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: "Asia/Tokyo"
+    volumes:
+      - "./mysql_data:/var/lib/mysql"
+    command: --bind-address=0.0.0.0
+    ports:
+      - 3306:3306
+
+  frontend:
+    volumes:
+      - "./frontend_project:/app_frontend"
+      - /app_frontend/node_modules
+    build:
+      context: .
+      dockerfile: ./frontend_project/Dockerfile
+    ports:
+      - "5173:5173"
+    stdin_open: true
+    tty: true
+
+volumes:
+  mysql_data:
