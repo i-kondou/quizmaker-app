@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from .db import models
 from .db.database import async_engine
 from .routers import image
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
@@ -20,6 +21,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/images", StaticFiles(directory="backend/images"), name="images")
 
 if __name__=="__main__":
     uvicorn.run("main:app",port=8000, reload=True)

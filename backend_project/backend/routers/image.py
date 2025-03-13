@@ -1,10 +1,18 @@
 from fastapi import APIRouter, File, UploadFile
 from fastapi.responses import JSONResponse
 import io
-import numpy as np
+from os import environ
 from PIL import Image
-import cv2
-import pytesseract
+from google import genai
+from google.genai import types
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import HumanMessage
+from typing import Optional
+from typing_extensions import Annotated, TypedDict
+import string
+import random
+import shutil
+import base64
 
 router = APIRouter(
     prefix="/image",
@@ -12,30 +20,36 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
-@router.post("/ocr/")
-async def ocr_image(file: UploadFile = File(...)):
-    # アップロードされた画像データをバイナリで読み込む
-    image_bytes = await file.read()
-    # Pillow で画像を開く
-    pil_image = Image.open(io.BytesIO(image_bytes))
-    # PIL.Image から OpenCV 形式の配列に変換（RGB -> BGR）
-    cv_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro")
 
-    # 前処理: グレースケール変換
-    gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+class Explain(TypedDict):
+    title: Annotated[str, ..., "画像内にある世界遺産の名前"]
+    description: Annotated[str, ..., "画像内にある世界遺産の説明"]
 
-    # ノイズ除去: メディアンブラーの適用（カーネルサイズは3）
-    blurred = cv2.medianBlur(gray, 3)
+@router.post("/save")
+async def save_image(image: UploadFile = File(...)):
+    letters = string.ascii_letters
+    rand_str = ''.join(random.choice(letters) for i in range(6))
+    new = f"_{rand_str}."
+    filename = new.join(image.filename.rsplit(".", 1))
+    path = f"backend/images/{filename}"
+    web_path = f"images/{filename}"
+    with open(path, "w+b") as buffer:
+        shutil.copyfileobj(image.file, buffer)
+    return {"filename": web_path}
 
-    # しきい値処理: 自動しきい値（二値化、Otsu法またはadaptive thresholdを使用可能）
-    # ここでは、adaptive threshold を例示
-    thresh = cv2.adaptiveThreshold(
-        blurred, 255,
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY, 11, 2
+@router.post("/ocr/{filename}")
+async def ocr_image(filename: str):
+    path = f"backend/images/{filename}"
+    extention = filename.split(".")[-1]
+    with open(path, "r+b") as image_file:
+        encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
+    message = HumanMessage(
+        content=[
+            {"type": "text", "text": "画像には世界遺産についての情報が含まれています。"},
+            {"type": "image_url", "image_url": f"data:image/{extention};base64,{encoded_string}"},
+        ]
     )
-
-    # pytesseract による文字認識（日本語対応の場合、事前に日本語用の言語データをインストールしてください）
-    extracted_text = pytesseract.image_to_string(thresh, lang='jpn')
-
-    return JSONResponse(content={"extracted_text": extracted_text})
+    strucutred_llm = llm.with_structured_output(Explain)
+    response = strucutred_llm.invoke([message])
+    return response

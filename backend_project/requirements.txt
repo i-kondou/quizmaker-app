@@ -6,7 +6,7 @@ sqlalchemy
 aiomysql
 cryptography
 pymysql
-opencv-python
 pillow
-pytesseract
 numpy
+requests
+aiofiles
