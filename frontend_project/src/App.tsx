@@ -1,6 +1,7 @@
 import React, { useState, useEffect, ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+// import HeritageAccordionItem, {HeritageData, HeritageResponse,} from "./AnalyseResult";
 import "./App.css";
 
 interface ImageData {
@@ -9,14 +10,28 @@ interface ImageData {
   timestamp: string;
 }
 
+interface HeritageData {
+  title: string;
+  description: string;
+  criteria: number[];
+}
+
+interface HeritageResponse {
+  content: HeritageData[];
+}
+
 const BACKEND_URL = "http://localhost:8000";
 
 const App: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [images, setImages] = useState<ImageData[]>([]);
   const [loading, setLoading] = useState(false);
-  // モーダルで表示中の画像のインデックス（null の場合はモーダル非表示）
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<HeritageResponse | null>(
+    null
+  );
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingData, setEditingData] = useState<HeritageData | null>(null);
 
   // 画像一覧取得
   const fetchImages = async () => {
@@ -71,18 +86,21 @@ const App: React.FC = () => {
   };
 
   // 画像削除（カード上の削除ボタン用：モーダル表示時の削除は別ハンドラー）
-  const handleDelete = async (id: number) => {
+  const handleDeleteModal = async () => {
+    if (selectedIndex === null) return;
+    const currentImage = images[selectedIndex];
     try {
-      const response = await fetch(`${BACKEND_URL}/image/delete/${id}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(
+        `${BACKEND_URL}/image/delete/${currentImage.id}`,
+        {
+          method: "DELETE",
+        }
+      );
       if (response.ok) {
         console.log("削除成功");
+        setAnalysisResult(null);
+        setSelectedIndex(null);
         fetchImages();
-        // モーダルで表示中の場合、閉じる
-        if (selectedIndex !== null) {
-          setSelectedIndex(null);
-        }
       } else {
         console.error("削除に失敗しました");
       }
@@ -91,29 +109,43 @@ const App: React.FC = () => {
     }
   };
 
-  // モーダル内で削除処理
-  const handleDeleteModal = async () => {
+  const handleAnalyzeModal = async () => {
     if (selectedIndex === null) return;
     const currentImage = images[selectedIndex];
-    await handleDelete(currentImage.id);
+    try {
+      const response = await fetch(
+        `${BACKEND_URL}/heritage/preview/${currentImage.id}`,
+        {
+          method: "POST",
+        }
+      );
+      if (response.ok) {
+        const data: HeritageResponse = await response.json();
+        console.log("解析成功", data);
+        setAnalysisResult(data);
+      } else {
+        console.error("解析に失敗しました");
+      }
+    } catch (error) {
+      console.error("解析エラー:", error);
+    }
   };
 
-  // 解析ボタン（プレースホルダー）
-  const handleAnalyzeModal = () => {
-    if (selectedIndex === null) return;
-    const currentImage = images[selectedIndex];
-    alert(`解析処理中: ${currentImage.filename}`);
+  const handleBackToImage = () => {
+    setAnalysisResult(null);
   };
 
   // 前の画像へ移動
   const prevImage = () => {
     if (selectedIndex === null) return;
+    setAnalysisResult(null);
     setSelectedIndex(selectedIndex > 0 ? selectedIndex - 1 : 0);
   };
 
   // 次の画像へ移動
   const nextImage = () => {
     if (selectedIndex === null) return;
+    setAnalysisResult(null);
     setSelectedIndex(
       selectedIndex < images.length - 1 ? selectedIndex + 1 : selectedIndex
     );
@@ -159,32 +191,152 @@ const App: React.FC = () => {
         </div>
       </section>
 
-      {/* モーダル（大きな画像表示、削除・解析・ナビゲーション） */}
+      {/* モーダル */}
       {selectedIndex !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="relative bg-white p-4 rounded shadow-lg max-w-3xl w-full">
             {/* 閉じるボタン：右上に配置、サイズ大 */}
             <button
               className="absolute top-4 right-4 z-50 flex items-center justify-center w-10 h-10 rounded-lg bg-gray-500 text-3xl font-bold text-white hover:bg-gray-600"
-              onClick={() => setSelectedIndex(null)}
+              onClick={() => {
+                setSelectedIndex(null);
+                setAnalysisResult(null);
+              }}
             >
               ×
             </button>
-            {/* 画像表示エリア（左右の矢印を画像外に配置） */}
+            {/* 画像/解析結果表示エリア */}
             <div className="relative flex justify-center items-center">
-              {/* 左矢印：画像左外側に配置 */}
+              {/* 左矢印 */}
               <button
                 onClick={prevImage}
                 className="absolute -left-16 top-1/2 transform -translate-y-1/2 text-8xl text-gray-700 hover:text-gray-950"
               >
                 ‹
               </button>
-              <img
-                src={`${BACKEND_URL}/${images[selectedIndex].filename}`}
-                alt=""
-                className="max-w-full max-h-[80vh] object-contain"
-              />
-              {/* 右矢印：画像右外側に配置 */}
+              {analysisResult ? (
+                // 解析結果表示モード
+                <div className="p-4 max-h-[80vh] overflow-y-auto">
+                  <h2 className="text-2xl font-bold mb-2">解析結果</h2>
+                  {analysisResult.content.map((item, idx) => (
+                    <div key={idx} className="mb-4 border p-2 rounded">
+                      {editingIndex === idx && editingData ? (
+                        <div>
+                          <div>
+                            <label className="block text-sm font-medium">
+                              名称:
+                            </label>
+                            <input
+                              type="text"
+                              value={editingData.title}
+                              onChange={(e) =>
+                                setEditingData({
+                                  ...editingData,
+                                  title: e.target.value,
+                                })
+                              }
+                              className="mt-1 block w-full border border-gray-300 rounded-md p-1"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium">
+                              説明:
+                            </label>
+                            <textarea
+                              value={editingData.description}
+                              onChange={(e) =>
+                                setEditingData({
+                                  ...editingData,
+                                  description: e.target.value,
+                                })
+                              }
+                              className="mt-1 block w-full border border-gray-300 rounded-md p-1"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium">
+                              登録基準:
+                            </label>
+                            <input
+                              type="text"
+                              value={editingData.criteria.join(", ")}
+                              onChange={(e) => {
+                                const nums = e.target.value
+                                  .split(",")
+                                  .map((s) => Number(s.trim()))
+                                  .filter((n) => !isNaN(n));
+                                setEditingData({
+                                  ...editingData,
+                                  criteria: nums,
+                                });
+                              }}
+                              className="mt-1 block w-full border border-gray-300 rounded-md p-1"
+                            />
+                          </div>
+                          <div className="mt-2 flex justify-end space-x-2">
+                            <Button
+                              onClick={() => {
+                                // 編集内容を確定して更新
+                                if (analysisResult) {
+                                  const newContent = [
+                                    ...analysisResult.content,
+                                  ];
+                                  newContent[idx] = editingData;
+                                  setAnalysisResult({ content: newContent });
+                                }
+                                setEditingIndex(null);
+                                setEditingData(null);
+                              }}
+                            >
+                              編集完了
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setEditingIndex(null);
+                                setEditingData(null);
+                              }}
+                            >
+                              キャンセル
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <p>
+                            <strong>名称:</strong> {item.title}
+                          </p>
+                          <p>
+                            <strong>説明:</strong> {item.description}
+                          </p>
+                          <p>
+                            <strong>登録基準:</strong>{" "}
+                            {item.criteria.join(", ")}
+                          </p>
+                          <Button
+                            onClick={() => {
+                              setEditingIndex(idx);
+                              setEditingData(item);
+                            }}
+                          >
+                            編集
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {/* 戻るボタン */}
+                  <Button onClick={handleBackToImage}>戻る</Button>
+                </div>
+              ) : (
+                // 画像表示モード
+                <img
+                  src={`${BACKEND_URL}/${images[selectedIndex].filename}`}
+                  alt=""
+                  className="max-w-full max-h-[80vh] object-contain"
+                />
+              )}
+              {/* 右矢印 */}
               <button
                 onClick={nextImage}
                 className="absolute -right-16 top-1/2 transform -translate-y-1/2 text-8xl text-gray-700 hover:text-gray-950"
@@ -201,7 +353,12 @@ const App: React.FC = () => {
               >
                 削除
               </Button>
-              <Button onClick={handleAnalyzeModal}>解析</Button>
+              <Button
+                className="bg-blue-500 text-white hover:bg-blue-400"
+                onClick={handleAnalyzeModal}
+              >
+                解析
+              </Button>
             </div>
           </div>
         </div>

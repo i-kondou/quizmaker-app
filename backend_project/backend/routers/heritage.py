@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..db.database import get_db
+from ..db import db_image
 import base64
 import aiofiles
 import os
@@ -32,8 +33,12 @@ ocr_results_tmp = {}
 
 IMAGE_FORDER = os.getenv("IMAGE_FORDER", "backend/images")
 
-@router.post("/preview/{filename}")
-async def preview_ocr_image(filename: str):
+@router.post("/preview/{image_id}")
+async def preview_ocr_image(image_id: int, db: AsyncSession = Depends(get_db)):
+    record = await db_image.get_by_id(db, image_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Image not found")
+    filename = record.filename.split("/")[-1]
     path = os.path.join(IMAGE_FORDER, filename)
     extention = filename.split(".")[-1]
     try:
