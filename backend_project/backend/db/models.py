@@ -1,16 +1,19 @@
 from .database import Base
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, JSON, select
+from sqlalchemy.orm import relationship
 
-class DbUser(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(255), unique=True)
-    email = Column(String(255), unique=True)
-    hashed_password = Column(String(255))
-
-class DbImage(Base):
+class ImageModel(Base):
     __tablename__ = "images"
     id = Column(Integer, primary_key=True, index=True)
-    image_url = Column(String(255), unique=True)
-    image_url_type = Column(String(255))
-    timestamp = Column(Integer)
+    filename = Column(String(255), unique=True, index=True)
+    timestamp = Column(DateTime)
+    heritages = relationship("HeritageModel", back_populates="image")
+
+class HeritageModel(Base):
+    __tablename__ = "heritages"
+    id = Column(Integer, primary_key=True, index=True)
+    image_id = Column(Integer, ForeignKey("images.id"))
+    image = relationship("ImageModel", back_populates="heritages")
+    title = Column(String(255))
+    description = Column(Text)
+    criteria = Column(JSON)

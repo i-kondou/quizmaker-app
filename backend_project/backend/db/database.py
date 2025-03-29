@@ -1,6 +1,6 @@
 from sqlalchemy.engine.url import URL
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.orm import declarative_base
 from os import environ
 
 url = URL.create(
@@ -17,18 +17,13 @@ async_engine = create_async_engine(
     echo=True
 )
 
-async_session = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=async_engine,
-    class_=AsyncSession
+async_session = async_sessionmaker(
+    async_engine,
+    expire_on_commit=False
 )
 
 Base = declarative_base()
 
-async def get_db():
+async def get_db() -> AsyncSession:
     async with async_session() as session:
-        try:
-            yield session
-        finally:
-            session.close()
+        yield session

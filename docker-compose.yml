@@ -19,7 +19,7 @@ services:
       - "8000:8000"
 
   db:
-    image: mysql:9.2
+    image: mysql:9.2.0
     platform: linux/x86_64
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
@@ -29,7 +29,7 @@ services:
       TZ: "Asia/Tokyo"
     volumes:
       - "./mysql_data:/var/lib/mysql"
-    command: --bind-address=0.0.0.0
+    command: --bind-address=0.0.0.0 --skip-name-resolve
     ports:
       - 3306:3306
 
