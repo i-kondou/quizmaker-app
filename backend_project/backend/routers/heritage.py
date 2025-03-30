@@ -1,11 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..db.database import get_db
-from ..db import db_image
+from ..db import db_image, db_heritage
 import base64
 import aiofiles
 import os
-from PIL import Image
 from google import genai
 from google.genai import types
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -28,8 +27,6 @@ class HeritageItem(TypedDict):
 
 class HeritageResponse(TypedDict):
     content: List[HeritageItem]
-
-ocr_results_tmp = {}
 
 IMAGE_FORDER = os.getenv("IMAGE_FORDER", "backend/images")
 
@@ -60,10 +57,53 @@ async def preview_ocr_image(image_id: int, db: AsyncSession = Depends(get_db)):
         ]
     )
     strucutred_llm = llm.with_structured_output(HeritageResponse)
-    response = strucutred_llm.invoke([message])
-    ocr_results_tmp[filename] = response
+    try:
+        response: HeritageResponse = strucutred_llm.invoke([message])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to process image with LLM")
+
+    try:
+        saved_heritages = await db_heritage.create_multiple_heritages(db, image_id, response["content"])
+    except HTTPException as http_ex:
+        raise http_ex
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="n unexpected error occurred while saving data.")
+
     return response
 
-@router.post("/confirm/{filename}")
-async def confirm_ocr_image(filename: str):
-    return ocr_results_tmp[filename]
+@router.post("/view/{image_id}", response_model=HeritageResponse)
+async def confirm_ocr_image(image_id: int, db: AsyncSession = Depends(get_db)):
+    image_record = await db_image.get_by_id(db, image_id)
+    if not image_record:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    heritage_records = await db_heritage.get_heritages_by_image_id(db, image_id)
+
+    content_list = [
+        {"title": record.title, "description": record.description, "criteria": record.criteria}
+        for record in heritage_records
+    ]
+    response = {"content": content_list}
+    return response
+
+@router.put("/update/{image_id}", status_code=200, response_model=HeritageResponse)
+async def update_heritages_for_image(
+    image_id: int,
+    heritage_data: HeritageResponse,
+    db: AsyncSession = Depends(get_db),
+):
+    image_record = await db_image.get_by_id(db, image_id)
+    if not image_record:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    try:
+        updated_heritages_models = await db_heritage.update_heritages(db, image_id, heritage_data.get("content", []))
+        response = [
+            {"title": model.title, "description": model.description, "criteria": model.criteria}
+            for model in updated_heritages_models
+        ]
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while updating data.")
+    return {"content": response}

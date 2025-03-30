@@ -5,9 +5,6 @@ from sqlalchemy import select, delete
 from .models import ImageModel
 from datetime import datetime
 
-import logging
-logger = logging.getLogger(__name__)
-
 async def create(db: AsyncSession, request: ImageBase):
     new_image = ImageModel(
         filename=request.filename,
@@ -18,7 +15,6 @@ async def create(db: AsyncSession, request: ImageBase):
         await db.commit()
     except Exception as e:
         await db.rollback()
-        logger.error("%s", e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="DB commit failed: {str(e)}")
     await db.refresh(new_image)
     return new_image

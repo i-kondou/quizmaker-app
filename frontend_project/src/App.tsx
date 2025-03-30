@@ -1,368 +1,301 @@
-import React, { useState, useEffect, ChangeEvent } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-// import HeritageAccordionItem, {HeritageData, HeritageResponse,} from "./AnalyseResult";
+// src/App.tsx
+import React, { useState, useEffect, ChangeEvent, useCallback } from "react";
+import ImageUpload from "./components/ImageUpload";
+import ImageList from "./components/ImageList";
+import ImageModal from "./components/ImageModal";
+import * as api from "./services/api";
+import { ImageData, HeritageData, HeritageResponse } from "./types";
 import "./App.css";
 
-interface ImageData {
-  id: number;
-  filename: string;
-  timestamp: string;
-}
-
-interface HeritageData {
-  title: string;
-  description: string;
-  criteria: number[];
-}
-
-interface HeritageResponse {
-  content: HeritageData[];
-}
-
-const BACKEND_URL = "http://localhost:8000";
-
 const App: React.FC = () => {
+  // --- State定義 (Appコンポーネントで管理する主要なState) ---
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [images, setImages] = useState<ImageData[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null); // モーダル表示用
+  // --- モーダル関連のState (本来はImageModal内か、専用Hookが良い) ---
   const [analysisResult, setAnalysisResult] = useState<HeritageResponse | null>(
     null
   );
+  const [accordionDefaultValue, setAccordionDefaultValue] = useState<string[]>(
+    []
+  );
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingData, setEditingData] = useState<HeritageData | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [isFetchingResult, setIsFetchingResult] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [hasAnalyzedBefore, setHasAnalyzedBefore] = useState<boolean>(false);
+  const [fetchedDataCache, setFetchedDataCache] =
+    useState<HeritageResponse | null>(null);
 
-  // 画像一覧取得
-  const fetchImages = async () => {
+  // --- API呼び出し関数 (useCallbackでメモ化) ---
+  const fetchImages = useCallback(async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/image/all`);
-      if (response.ok) {
-        const data = await response.json();
-        setImages(data);
-      } else {
-        console.error("画像取得に失敗しました");
-      }
-    } catch (error) {
-      console.error("画像取得エラー:", error);
+      const data = await api.fetchImagesAPI();
+      setImages(data);
+    } catch (error: any) {
+      console.error("画像取得エラー:", error.message);
+      // エラー表示 (例: トースト)
     }
-  };
-
-  useEffect(() => {
-    fetchImages();
   }, []);
 
-  // ファイル選択
+  const fetchAnalysisResult = useCallback(async (imageId: number) => {
+    setIsFetchingResult(true);
+    setFetchError(null);
+    setAnalysisResult(null);
+    setAccordionDefaultValue([]);
+    setHasAnalyzedBefore(false);
+    setFetchedDataCache(null);
+    try {
+      const data = await api.fetchAnalysisResultAPI(imageId);
+      if (data.content && data.content.length > 0) {
+        setAnalysisResult(data);
+        setFetchedDataCache(data);
+        setAccordionDefaultValue(
+          data.content.map((_, index) => `item-${index}`)
+        );
+        setHasAnalyzedBefore(true);
+      } else {
+        setHasAnalyzedBefore(false);
+      }
+    } catch (error: any) {
+      console.error("解析結果取得エラー:", error.message);
+      // 404かどうかなどを判定してエラー表示
+      if (!error.message?.includes("404")) {
+        setFetchError("解析結果の取得に失敗しました。");
+      }
+      setHasAnalyzedBefore(false);
+    } finally {
+      setIsFetchingResult(false);
+    }
+  }, []);
+
+  // --- 初期データ読み込み ---
+  useEffect(() => {
+    fetchImages();
+  }, [fetchImages]);
+
+  // --- モーダル表示時のデータ読み込み ---
+  useEffect(() => {
+    if (selectedIndex !== null && images.length > selectedIndex) {
+      fetchAnalysisResult(images[selectedIndex].id);
+      setEditingIndex(null);
+      setEditingData(null);
+      setIsAnalyzing(false);
+      setIsSaving(false);
+    } else {
+      // モーダル閉じるときのリセット
+      setAnalysisResult(null);
+      setAccordionDefaultValue([]);
+      setFetchError(null);
+      setHasAnalyzedBefore(false);
+      setFetchedDataCache(null);
+    }
+  }, [selectedIndex, images, fetchAnalysisResult]); // 依存配列を修正
+
+  // --- イベントハンドラー (API呼び出し部分を services/api を使うように変更) ---
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
     }
   };
 
-  // 画像アップロード
   const handleUpload = async () => {
     if (!selectedFile) return;
-    setLoading(true);
-    const formData = new FormData();
-    formData.append("image", selectedFile);
-
+    setUploadLoading(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/image/upload`, {
-        method: "POST",
-        body: formData,
-      });
-      if (response.ok) {
-        console.log("アップロード成功");
-        fetchImages();
-      } else {
-        console.error("アップロードに失敗しました");
-      }
-    } catch (error) {
-      console.error("アップロードエラー:", error);
-    } finally {
-      setLoading(false);
+      await api.uploadImageAPI(selectedFile);
+      await fetchImages(); // 再取得
       setSelectedFile(null);
+    } catch (error: any) {
+      console.error("アップロードエラー:", error.message);
+      // エラー表示
+    } finally {
+      setUploadLoading(false);
     }
   };
 
-  // 画像削除（カード上の削除ボタン用：モーダル表示時の削除は別ハンドラー）
   const handleDeleteModal = async () => {
-    if (selectedIndex === null) return;
-    const currentImage = images[selectedIndex];
+    if (selectedIndex === null || isAnalyzing || isSaving || isFetchingResult)
+      return;
+    const imageId = images[selectedIndex].id;
+    // ローディング開始など
     try {
-      const response = await fetch(
-        `${BACKEND_URL}/image/delete/${currentImage.id}`,
-        {
-          method: "DELETE",
-        }
-      );
-      if (response.ok) {
-        console.log("削除成功");
-        setAnalysisResult(null);
-        setSelectedIndex(null);
-        fetchImages();
-      } else {
-        console.error("削除に失敗しました");
-      }
-    } catch (error) {
-      console.error("削除エラー:", error);
+      await api.deleteImageAPI(imageId);
+      console.log("削除成功");
+      setSelectedIndex(null); // モーダルを閉じる
+      await fetchImages(); // 画像リスト再取得
+    } catch (error: any) {
+      console.error("削除エラー:", error.message);
+      setFetchError("画像の削除に失敗しました。");
+    } finally {
+      // ローディング終了
     }
   };
 
-  const handleAnalyzeModal = async () => {
-    if (selectedIndex === null) return;
-    const currentImage = images[selectedIndex];
+  const handleAnalyzeAndSave = async () => {
+    if (selectedIndex === null || isAnalyzing) return;
+    const imageId = images[selectedIndex].id;
+    setIsAnalyzing(true);
+    setFetchError(null);
     try {
-      const response = await fetch(
-        `${BACKEND_URL}/heritage/preview/${currentImage.id}`,
-        {
-          method: "POST",
-        }
-      );
-      if (response.ok) {
-        const data: HeritageResponse = await response.json();
-        console.log("解析成功", data);
-        setAnalysisResult(data);
-      } else {
-        console.error("解析に失敗しました");
-      }
-    } catch (error) {
-      console.error("解析エラー:", error);
+      // APIを呼び出し (レスポンスは使わない場合)
+      await api.analyzeAndSaveHeritageAPI(imageId);
+      console.log("解析＆DB保存/更新 成功");
+      // 再取得して表示更新
+      await fetchAnalysisResult(imageId);
+    } catch (error: any) {
+      console.error("解析エラー:", error.message);
+      setFetchError("解析に失敗しました。");
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
   const handleBackToImage = () => {
     setAnalysisResult(null);
+    setAccordionDefaultValue([]);
+    setEditingIndex(null);
+    setEditingData(null);
   };
 
-  // 前の画像へ移動
+  const showAnalysisResultFromCache = () => {
+    if (fetchedDataCache) {
+      setAnalysisResult(fetchedDataCache);
+      setAccordionDefaultValue(
+        fetchedDataCache.content.map((_, idx) => `item-${idx}`)
+      );
+      setFetchError(null);
+      setEditingIndex(null);
+      setEditingData(null);
+    } else if (selectedIndex !== null) {
+      // フォールバック
+      fetchAnalysisResult(images[selectedIndex].id);
+    }
+  };
+
   const prevImage = () => {
-    if (selectedIndex === null) return;
-    setAnalysisResult(null);
-    setSelectedIndex(selectedIndex > 0 ? selectedIndex - 1 : 0);
+    if (
+      selectedIndex !== null &&
+      selectedIndex > 0 &&
+      !(isAnalyzing || isSaving || isFetchingResult)
+    ) {
+      setSelectedIndex(selectedIndex - 1);
+    }
   };
 
-  // 次の画像へ移動
   const nextImage = () => {
-    if (selectedIndex === null) return;
-    setAnalysisResult(null);
-    setSelectedIndex(
-      selectedIndex < images.length - 1 ? selectedIndex + 1 : selectedIndex
-    );
+    if (
+      selectedIndex !== null &&
+      selectedIndex < images.length - 1 &&
+      !(isAnalyzing || isSaving || isFetchingResult)
+    ) {
+      setSelectedIndex(selectedIndex + 1);
+    }
   };
 
+  const closeModal = () => {
+    setSelectedIndex(null);
+  };
+
+  const handleEditStart = (index: number, data: HeritageData) => {
+    setEditingIndex(index);
+    setEditingData({ ...data });
+  };
+
+  const handleEditChange = (data: HeritageData) => {
+    setEditingData(data);
+  };
+
+  const handleEditComplete = async (index: number) => {
+    // index は使わないかも (editingData に基づくため)
+    if (!editingData || selectedIndex === null || isSaving) return;
+    const imageId = images[selectedIndex].id;
+    const currentContent =
+      fetchedDataCache?.content || analysisResult?.content || [];
+    const newContent = currentContent.map((item, idx) =>
+      idx === editingIndex ? editingData : item
+    );
+    const updatedAnalysisData: HeritageResponse = { content: newContent };
+
+    setIsSaving(true);
+    setFetchError(null);
+    try {
+      const savedData = await api.updateHeritageAPI(
+        imageId,
+        updatedAnalysisData
+      );
+      console.log("編集内容のDB保存成功", savedData);
+      setAnalysisResult(savedData);
+      setFetchedDataCache(savedData); // キャッシュも更新
+      setAccordionDefaultValue(
+        savedData.content.map((_, idx) => `item-${idx}`)
+      );
+      setEditingIndex(null);
+      setEditingData(null);
+    } catch (error: any) {
+      console.error("編集内容の保存エラー:", error.message);
+      setFetchError("編集内容の保存中にエラーが発生しました。");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleEditCancel = () => {
+    setEditingIndex(null);
+    setEditingData(null);
+  };
+
+  // --- レンダリング ---
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-4">画像管理</h1>
 
-      {/* アップロードセクション */}
-      <section className="mb-8">
-        <div className="flex items-center space-x-4">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="border p-2 rounded"
-          />
-          <Button onClick={handleUpload} disabled={loading || !selectedFile}>
-            {loading ? "アップロード中..." : "アップロード"}
-          </Button>
-        </div>
-      </section>
+      {/* 画像アップロードコンポーネント */}
+      <ImageUpload
+        selectedFile={selectedFile}
+        onFileChange={handleFileChange}
+        onUpload={handleUpload}
+        isLoading={uploadLoading}
+      />
 
-      {/* 画像一覧表示 */}
-      <section>
-        <div className="flex flex-wrap gap-4">
-          {images.map((img, index) => (
-            <Card
-              key={img.id}
-              className="w-40 shadow cursor-pointer"
-              onClick={() => setSelectedIndex(index)}
-            >
-              <CardContent className="flex flex-col items-center">
-                <img
-                  src={`${BACKEND_URL}/${img.filename}`}
-                  alt=""
-                  className="w-32 h-32 object-cover mb-2"
-                />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
+      {/* 画像一覧コンポーネント */}
+      <ImageList
+        images={images}
+        onImageClick={setSelectedIndex} // indexを渡してselectedIndexを更新
+        disabled={
+          isAnalyzing || isSaving || isFetchingResult || selectedIndex !== null
+        } // モーダル表示中や処理中は無効化
+      />
 
-      {/* モーダル */}
-      {selectedIndex !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="relative bg-white p-4 rounded shadow-lg max-w-3xl w-full">
-            {/* 閉じるボタン：右上に配置、サイズ大 */}
-            <button
-              className="absolute top-4 right-4 z-50 flex items-center justify-center w-10 h-10 rounded-lg bg-gray-500 text-3xl font-bold text-white hover:bg-gray-600"
-              onClick={() => {
-                setSelectedIndex(null);
-                setAnalysisResult(null);
-              }}
-            >
-              ×
-            </button>
-            {/* 画像/解析結果表示エリア */}
-            <div className="relative flex justify-center items-center">
-              {/* 左矢印 */}
-              <button
-                onClick={prevImage}
-                className="absolute -left-16 top-1/2 transform -translate-y-1/2 text-8xl text-gray-700 hover:text-gray-950"
-              >
-                ‹
-              </button>
-              {analysisResult ? (
-                // 解析結果表示モード
-                <div className="p-4 max-h-[80vh] overflow-y-auto">
-                  <h2 className="text-2xl font-bold mb-2">解析結果</h2>
-                  {analysisResult.content.map((item, idx) => (
-                    <div key={idx} className="mb-4 border p-2 rounded">
-                      {editingIndex === idx && editingData ? (
-                        <div>
-                          <div>
-                            <label className="block text-sm font-medium">
-                              名称:
-                            </label>
-                            <input
-                              type="text"
-                              value={editingData.title}
-                              onChange={(e) =>
-                                setEditingData({
-                                  ...editingData,
-                                  title: e.target.value,
-                                })
-                              }
-                              className="mt-1 block w-full border border-gray-300 rounded-md p-1"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium">
-                              説明:
-                            </label>
-                            <textarea
-                              value={editingData.description}
-                              onChange={(e) =>
-                                setEditingData({
-                                  ...editingData,
-                                  description: e.target.value,
-                                })
-                              }
-                              className="mt-1 block w-full border border-gray-300 rounded-md p-1"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium">
-                              登録基準:
-                            </label>
-                            <input
-                              type="text"
-                              value={editingData.criteria.join(", ")}
-                              onChange={(e) => {
-                                const nums = e.target.value
-                                  .split(",")
-                                  .map((s) => Number(s.trim()))
-                                  .filter((n) => !isNaN(n));
-                                setEditingData({
-                                  ...editingData,
-                                  criteria: nums,
-                                });
-                              }}
-                              className="mt-1 block w-full border border-gray-300 rounded-md p-1"
-                            />
-                          </div>
-                          <div className="mt-2 flex justify-end space-x-2">
-                            <Button
-                              onClick={() => {
-                                // 編集内容を確定して更新
-                                if (analysisResult) {
-                                  const newContent = [
-                                    ...analysisResult.content,
-                                  ];
-                                  newContent[idx] = editingData;
-                                  setAnalysisResult({ content: newContent });
-                                }
-                                setEditingIndex(null);
-                                setEditingData(null);
-                              }}
-                            >
-                              編集完了
-                            </Button>
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setEditingIndex(null);
-                                setEditingData(null);
-                              }}
-                            >
-                              キャンセル
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div>
-                          <p>
-                            <strong>名称:</strong> {item.title}
-                          </p>
-                          <p>
-                            <strong>説明:</strong> {item.description}
-                          </p>
-                          <p>
-                            <strong>登録基準:</strong>{" "}
-                            {item.criteria.join(", ")}
-                          </p>
-                          <Button
-                            onClick={() => {
-                              setEditingIndex(idx);
-                              setEditingData(item);
-                            }}
-                          >
-                            編集
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {/* 戻るボタン */}
-                  <Button onClick={handleBackToImage}>戻る</Button>
-                </div>
-              ) : (
-                // 画像表示モード
-                <img
-                  src={`${BACKEND_URL}/${images[selectedIndex].filename}`}
-                  alt=""
-                  className="max-w-full max-h-[80vh] object-contain"
-                />
-              )}
-              {/* 右矢印 */}
-              <button
-                onClick={nextImage}
-                className="absolute -right-16 top-1/2 transform -translate-y-1/2 text-8xl text-gray-700 hover:text-gray-950"
-              >
-                ›
-              </button>
-            </div>
-            {/* ボタン群 */}
-            <div className="mt-4 flex justify-center space-x-4">
-              <Button
-                variant="destructive"
-                className="bg-red-500 text-white hover:bg-red-400"
-                onClick={handleDeleteModal}
-              >
-                削除
-              </Button>
-              <Button
-                className="bg-blue-500 text-white hover:bg-blue-400"
-                onClick={handleAnalyzeModal}
-              >
-                解析
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 画像モーダルコンポーネント */}
+      <ImageModal
+        isOpen={selectedIndex !== null}
+        onClose={closeModal}
+        images={images}
+        selectedIndex={selectedIndex ?? -1} // nullでないことを保証 or isOpenで制御
+        onPrev={prevImage}
+        onNext={nextImage}
+        onDelete={handleDeleteModal}
+        analysisResult={analysisResult}
+        isFetchingResult={isFetchingResult}
+        isAnalyzing={isAnalyzing}
+        isSaving={isSaving}
+        fetchError={fetchError}
+        hasAnalyzedBefore={hasAnalyzedBefore}
+        onAnalyze={handleAnalyzeAndSave}
+        onShowAnalysis={showAnalysisResultFromCache}
+        onBackToImage={handleBackToImage}
+        editingIndex={editingIndex}
+        editingData={editingData}
+        onEditStart={handleEditStart}
+        onEditChange={handleEditChange} // 編集フォームコンポーネントに渡す
+        onEditComplete={handleEditComplete}
+        onEditCancel={handleEditCancel}
+        accordionDefaultValue={accordionDefaultValue}
+      />
     </div>
   );
 };
