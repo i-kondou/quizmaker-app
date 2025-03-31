@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 from typing import List
 
@@ -22,3 +22,14 @@ class HeritageItemPayload(BaseModel):
 
 class HeritageItemResponse(BaseModel):
     content: List[HeritageItemPayload]
+
+class HeritageItemDisplay(BaseModel):
+    id: int
+    image_id: int
+    title: str
+    description: str | None
+    criteria: List[int] | None
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )

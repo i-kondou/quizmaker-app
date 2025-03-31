@@ -1,42 +1,34 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Loader2, X } from "lucide-react";
-import { ImageData, HeritageData, HeritageResponse } from "../types";
+import AnalysisResultAccordion from "./AnalysisResultAccordion";
+import { ImageData, HeritageData, HeritageResponse } from "../../types";
 
 const BACKEND_URL = "http://localhost:8000"; // Propsで渡すかConfigファイル
 
 interface ImageModalProps {
   isOpen: boolean;
   onClose: () => void;
-  images: ImageData[]; // 画像リスト全体 (前後に移動するため)
-  selectedIndex: number; // 選択中の画像のインデックス
+  images: ImageData[];
+  selectedIndex: number;
   onPrev: () => void;
   onNext: () => void;
   onDelete: () => void;
-  // 解析関連
   analysisResult: HeritageResponse | null;
   isFetchingResult: boolean;
   isAnalyzing: boolean;
   isSaving: boolean;
   fetchError: string | null;
   hasAnalyzedBefore: boolean;
-  onAnalyze: () => void; // 解析実行関数
-  onShowAnalysis: () => void; // 解析結果再表示関数
-  onBackToImage: () => void; // 画像表示に戻る関数
-  // 編集関連
+  onAnalyze: () => void;
+  onShowAnalysis: () => void;
+  onBackToImage: () => void;
   editingIndex: number | null;
   editingData: HeritageData | null;
   onEditStart: (index: number, data: HeritageData) => void;
-  onEditChange: (data: HeritageData) => void; // 編集データ更新
+  onEditChange: (data: HeritageData) => void; // App -> ImageModal -> Accordion -> Form へ渡す
   onEditComplete: (index: number) => void;
   onEditCancel: () => void;
-  // アコーディオン用
   accordionDefaultValue: string[];
 }
 
@@ -60,7 +52,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
   editingIndex,
   editingData,
   onEditStart,
-  onEditChange, // このPropsは直接フォームに渡す方が良いかも
+  onEditChange, // 受け取る
   onEditComplete,
   onEditCancel,
   accordionDefaultValue,
@@ -134,116 +126,17 @@ const ImageModal: React.FC<ImageModalProps> = ({
           {/* 解析結果表示 or 画像表示 */}
           {!isFetchingResult && analysisResult ? (
             // --- 解析結果表示 (Accordion) ---
-            // ここは AnalysisResultAccordion コンポーネントに分割するのが望ましい
-            <div className="w-full">
-              <h2>解析結果</h2>
-              <Accordion
-                type="multiple"
-                defaultValue={accordionDefaultValue}
-                className="w-full"
-              >
-                {analysisResult.content.map((item, idx) => (
-                  <AccordionItem key={idx} value={`item-${idx}`}>
-                    <AccordionTrigger>{item.title}</AccordionTrigger>
-                    <AccordionContent>
-                      {editingIndex === idx && editingData ? (
-                        // --- 編集フォーム ---
-                        // ここは AnalysisEditForm コンポーネントに分割
-                        <div className="space-y-2 p-2 bg-gray-50 rounded border">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                              名称:
-                            </label>
-                            <input
-                              value={editingData.title}
-                              onChange={(e) =>
-                                onEditChange({
-                                  ...editingData,
-                                  title: e.target.value,
-                                })
-                              }
-                              className="mt-1 block w-full border border-gray-300 rounded-md p-1 shadow-sm sm:text-sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                              説明:
-                            </label>
-                            <textarea
-                              value={editingData.description}
-                              onChange={(e) =>
-                                onEditChange({
-                                  ...editingData,
-                                  description: e.target.value,
-                                })
-                              }
-                              rows={3}
-                              className="mt-1 block w-full border border-gray-300 rounded-md p-1 shadow-sm sm:text-sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                              登録基準:
-                            </label>
-                            <input
-                              type="text"
-                              value={editingData.criteria.join(", ")}
-                              onChange={(e) => {
-                                const nums = e.target.value
-                                  .split(",")
-                                  .map((s) => Number(s.trim()))
-                                  .filter((n) => !isNaN(n) && n !== 0);
-                                onEditChange({
-                                  ...editingData,
-                                  criteria: nums,
-                                });
-                              }}
-                              className="mt-1 block w-full border border-gray-300 rounded-md p-1 shadow-sm sm:text-sm"
-                            />
-                          </div>
-                          <div className="mt-3 flex justify-end space-x-2">
-                            <Button
-                              onClick={() => onEditComplete(idx)}
-                              disabled={isSaving}
-                            >
-                              {" "}
-                              {isSaving ? <Loader2 /> : "編集完了"}{" "}
-                            </Button>
-                            <Button onClick={onEditCancel} disabled={isSaving}>
-                              {" "}
-                              キャンセル{" "}
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        // --- 通常表示 ---
-                        <div className="space-y-1 pl-2 text-sm md:text-base">
-                          <p className="whitespace-pre-wrap break-words">
-                            <strong>説明:</strong> {item.description}
-                          </p>
-                          <p>
-                            <strong>登録基準:</strong>{" "}
-                            {item.criteria.join(", ")}
-                          </p>
-                          <div className="mt-2">
-                            {" "}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => onEditStart(idx, item)}
-                              disabled={isSaving || editingIndex !== null}
-                            >
-                              {" "}
-                              編集{" "}
-                            </Button>{" "}
-                          </div>
-                        </div>
-                      )}
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            </div>
+            <AnalysisResultAccordion
+              analysisResult={analysisResult}
+              accordionDefaultValue={accordionDefaultValue}
+              editingIndex={editingIndex}
+              editingData={editingData}
+              onEditStart={onEditStart}
+              onEditChange={onEditChange} // Propsを渡す
+              onEditComplete={onEditComplete}
+              onEditCancel={onEditCancel}
+              isSaving={isSaving}
+            />
           ) : (
             // --- 画像表示モード ---
             <div className="flex flex-col justify-center items-center w-full h-full">

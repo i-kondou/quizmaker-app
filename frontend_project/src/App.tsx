@@ -2,7 +2,7 @@
 import React, { useState, useEffect, ChangeEvent, useCallback } from "react";
 import ImageUpload from "./components/ImageUpload";
 import ImageList from "./components/ImageList";
-import ImageModal from "./components/ImageModal";
+import ImageModal from "./components/ImageModal/ImageModal";
 import * as api from "./services/api";
 import { ImageData, HeritageData, HeritageResponse } from "./types";
 import "./App.css";
@@ -37,7 +37,6 @@ const App: React.FC = () => {
       setImages(data);
     } catch (error: any) {
       console.error("画像取得エラー:", error.message);
-      // エラー表示 (例: トースト)
     }
   }, []);
 

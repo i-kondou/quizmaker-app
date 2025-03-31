@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..db.database import get_db
 from ..db import db_image, db_heritage
+from .schemas import HeritageItemDisplay
 import base64
 import aiofiles
 import os
@@ -85,6 +86,10 @@ async def confirm_ocr_image(image_id: int, db: AsyncSession = Depends(get_db)):
     ]
     response = {"content": content_list}
     return response
+
+@router.get("/all", response_model=List[HeritageItemDisplay])
+async def get_all_heritages(db: AsyncSession = Depends(get_db)):
+    return await db_heritage.get_all_heritages(db)
 
 @router.put("/update/{image_id}", status_code=200, response_model=HeritageResponse)
 async def update_heritages_for_image(

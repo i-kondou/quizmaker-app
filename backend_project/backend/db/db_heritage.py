@@ -41,6 +41,16 @@ async def create_multiple_heritages(db: AsyncSession, image_id: int, heritage_da
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"DB commit failed: {str(e)}")
     return new_heritages
 
+async def get_all_heritages(db: AsyncSession) -> List[HeritageModel]:
+    stmt = select(HeritageModel)
+    stmt = stmt.order_by(HeritageModel.title.asc())
+
+    result = await db.execute(stmt)
+    heritages = result.scalars().all()
+    if not heritages:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No heritages found")
+    return heritages
+
 async def get_heritages_by_image_id(db: AsyncSession, image_id: int) -> List[HeritageModel]:
     result = await db.execute(select(HeritageModel).where(HeritageModel.image_id == image_id))
     heritages = result.scalars().all()
