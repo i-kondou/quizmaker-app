@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from .db import models
 from .db.database import async_engine, Base
-from .routers import image, heritage
+from .routers import image, heritage, quiz
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -11,6 +11,7 @@ app = FastAPI()
 
 app.include_router(image.router)
 app.include_router(heritage.router)
+app.include_router(quiz.router)
 
 origins = [
     "http://localhost:5173"

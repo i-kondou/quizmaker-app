@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import AnalysisEditForm from "./AnalysisEditForm";
 import { HeritageData, HeritageResponse } from "../../types";
+import { toRomanNumeral } from "@/utils/helpers";
 
 interface AnalysisResultAccordionProps {
   analysisResult: HeritageResponse; // null ではない前提
@@ -17,7 +18,7 @@ interface AnalysisResultAccordionProps {
   editingData: HeritageData | null;
   onEditStart: (index: number, data: HeritageData) => void;
   onEditChange: (data: HeritageData) => void; // 編集中のデータ変更
-  onEditComplete: (index: number) => void;
+  onEditComplete: () => void;
   onEditCancel: () => void;
   isSaving: boolean;
 }
@@ -44,17 +45,22 @@ const AnalysisResultAccordion: React.FC<AnalysisResultAccordionProps> = ({
         className="w-full"
       >
         {analysisResult.content.map((item, idx) => (
-          <AccordionItem key={idx} value={`item-${idx}`}>
+          <AccordionItem key={item.id} value={`item-${item.id}`}>
             <AccordionTrigger className="text-base md:text-lg font-semibold hover:no-underline text-left px-1">
               {item.title}
+              {/* {item.criteria && item.criteria.length > 0 && (
+                <span className="text-base text-gray-500 font-normal ml-auto whitespace-nowrap">
+                  登録基準： {item.criteria.map(toRomanNumeral).join(", ")}
+                </span>
+              )} */}
             </AccordionTrigger>
             <AccordionContent className="px-1">
               {editingIndex === idx && editingData ? (
                 // --- 編集フォームコンポーネントを使用 ---
                 <AnalysisEditForm
                   editingData={editingData}
-                  onDataChange={onEditChange} // 編集中の変更を親(ImageModal or App)に伝える
-                  onComplete={() => onEditComplete(idx)} // indexを渡す
+                  onDataChange={onEditChange}
+                  onComplete={onEditComplete}
                   onCancel={onEditCancel}
                   isSaving={isSaving}
                 />
@@ -65,14 +71,15 @@ const AnalysisResultAccordion: React.FC<AnalysisResultAccordionProps> = ({
                     <strong>説明:</strong> {item.description}
                   </p>
                   <p>
-                    <strong>登録基準:</strong> {item.criteria.join(", ")}
+                    <strong>登録基準:</strong>{" "}
+                    {item.criteria?.map(toRomanNumeral).join(", ") || "N/A"}
                   </p>
                   <div className="mt-2">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => onEditStart(idx, item)}
-                      disabled={isSaving || editingIndex !== null} // 他の項目編集中も非活性化
+                      disabled={isSaving || editingIndex !== null}
                     >
                       編集
                     </Button>

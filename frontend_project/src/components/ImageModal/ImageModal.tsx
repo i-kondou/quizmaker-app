@@ -1,10 +1,15 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, X } from "lucide-react";
-import AnalysisResultAccordion from "./AnalysisResultAccordion";
-import { ImageData, HeritageData, HeritageResponse } from "../../types";
+import AnalysisResultDisplay from "./AnalysisResultDisplay";
+import {
+  ImageData,
+  HeritageData,
+  HeritageResponse,
+  ModalViewMode,
+} from "../../types";
 
-const BACKEND_URL = "http://localhost:8000"; // Propsで渡すかConfigファイル
+const BACKEND_URL = "http://localhost:8000";
 
 interface ImageModalProps {
   isOpen: boolean;
@@ -17,19 +22,25 @@ interface ImageModalProps {
   analysisResult: HeritageResponse | null;
   isFetchingResult: boolean;
   isAnalyzing: boolean;
-  isSaving: boolean;
+  isSaving: boolean; // 編集保存中
   fetchError: string | null;
   hasAnalyzedBefore: boolean;
   onAnalyze: () => void;
+  modalViewMode: ModalViewMode;
+  onShowImage: () => void;
   onShowAnalysis: () => void;
-  onBackToImage: () => void;
   editingIndex: number | null;
   editingData: HeritageData | null;
   onEditStart: (index: number, data: HeritageData) => void;
-  onEditChange: (data: HeritageData) => void; // App -> ImageModal -> Accordion -> Form へ渡す
-  onEditComplete: (index: number) => void;
+  onEditChange: (data: HeritageData) => void;
+  onEditComplete: () => void;
   onEditCancel: () => void;
-  accordionDefaultValue: string[];
+  // accordionDefaultValue: string[]; // アコーディオンを使わないので不要
+  // 問題作成用に追加
+  generatingQuizId: number | null;
+  onGenerateQuiz: (heritageId: number) => void;
+  availableRegionTags: string[];
+  availableFeatureTags: string[];
 }
 
 const ImageModal: React.FC<ImageModalProps> = ({
@@ -47,25 +58,40 @@ const ImageModal: React.FC<ImageModalProps> = ({
   fetchError,
   hasAnalyzedBefore,
   onAnalyze,
+  modalViewMode,
+  onShowImage,
   onShowAnalysis,
-  onBackToImage,
   editingIndex,
   editingData,
   onEditStart,
-  onEditChange, // 受け取る
+  onEditChange,
   onEditComplete,
   onEditCancel,
-  accordionDefaultValue,
+  // accordionDefaultValue, // 不要
+  generatingQuizId,
+  onGenerateQuiz,
+  availableRegionTags,
+  availableFeatureTags,
 }) => {
-  if (!isOpen || selectedIndex === null || !images[selectedIndex]) {
+  useEffect(() => {
+    // モーダルが開いたときにクイズ生成状態をリセットする方が良いかも
+    // if (!isOpen) {
+    //   setGeneratingQuizIdInternal(null); // モーダル内で状態を持つ場合
+    // }
+  }, [isOpen]);
+
+  if (!isOpen || selectedIndex < 0 || !images[selectedIndex]) {
     return null;
   }
 
   const currentImage = images[selectedIndex];
-  const isLoading = isFetchingResult || isAnalyzing || isSaving; // ローディング状態をまとめる
+  // isSaving (編集保存中) も isLoading に含める
+  const isLoading =
+    isFetchingResult || isAnalyzing || isSaving || generatingQuizId !== null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      {" "}
       {/* --- 左矢印 --- */}
       <button
         onClick={onPrev}
@@ -89,102 +115,101 @@ const ImageModal: React.FC<ImageModalProps> = ({
         </svg>
         <span className="sr-only">前の画像</span>
       </button>
-
-      {/* --- モーダル本体 --- */}
-      <div className="relative bg-white p-6 rounded shadow-lg max-w-3xl w-[90%] max-h-[90vh] flex flex-col">
+      {/* --- モーダル本体 (幅を広げる) --- */}
+      <div className="relative bg-white p-6 rounded shadow-lg max-w-6xl w-full max-h-[90vh] flex flex-col">
+        {" "}
+        {/* max-w-6xl に変更 */}
         {/* --- 閉じるボタン --- */}
         <button
-          className={`absolute top-3 right-3 z-[51] p-1.5 rounded-full bg-black/30 hover:bg-black/50 text-white transition-colors disabled:opacity-50`}
           onClick={onClose}
           disabled={isLoading}
+          className={`absolute top-3 right-3 z-[51] p-1.5 rounded-full bg-black/30 hover:bg-black/50 text-white transition-colors disabled:opacity-50`}
           aria-label="閉じる"
         >
           {" "}
           <X className="w-5 h-5" />{" "}
         </button>
-
-        {/* --- コンテンツエリア --- */}
-        <div className="flex-grow overflow-y-auto pt-4 pr-2 relative min-h-[300px]">
+        {/* --- コンテンツエリア (Gridで2カラムに) --- */}
+        <div className="flex-grow overflow-y-auto pt-4 pr-2 relative min-h-[400px]">
+          {" "}
+          {/* 高さを確保 */}
           {/* エラー表示 */}
           {fetchError && (
             <div className="mb-4 p-3 bg-red-100 text-red-700 border border-red-300 rounded text-center">
               {fetchError}
             </div>
           )}
-
-          {/* ローディング表示 */}
+          {/* データ取得中表示 */}
           {isFetchingResult && (
-            <div className="absolute inset-0 flex flex-col justify-center items-center bg-white/80 rounded">
-              {" "}
-              <Loader2 className="w-10 h-10 md:w-12 md:h-12 animate-spin text-gray-500" />{" "}
+            <div className="flex flex-col justify-center items-center h-full">
+              <Loader2 className="w-10 h-10 md:w-12 md:h-12 animate-spin text-gray-500" />
               <p className="mt-3 text-base md:text-lg font-semibold text-gray-600">
                 データを取得中...
-              </p>{" "}
+              </p>
             </div>
           )}
-
-          {/* 解析結果表示 or 画像表示 */}
-          {!isFetchingResult && analysisResult ? (
-            // --- 解析結果表示 (Accordion) ---
-            <AnalysisResultAccordion
-              analysisResult={analysisResult}
-              accordionDefaultValue={accordionDefaultValue}
-              editingIndex={editingIndex}
-              editingData={editingData}
-              onEditStart={onEditStart}
-              onEditChange={onEditChange} // Propsを渡す
-              onEditComplete={onEditComplete}
-              onEditCancel={onEditCancel}
-              isSaving={isSaving}
-            />
-          ) : (
-            // --- 画像表示モード ---
-            <div className="flex flex-col justify-center items-center w-full h-full">
-              <img
-                src={`${BACKEND_URL}/${images[selectedIndex].filename}`}
-                alt={`Selected ${images[selectedIndex].id}`}
-                className={`max-w-full max-h-[70vh] object-contain transition-opacity ${
-                  isAnalyzing ? "opacity-50" : "opacity-100"
-                }`}
-              />
-              {/* 解析中スピナー */}
-              {isAnalyzing /* --- LLM解析中 --- */ && (
-                <div className="absolute inset-0 flex flex-col justify-center items-center bg-white/80 rounded">
-                  {" "}
-                  <Loader2 className="w-10 h-10 md:w-12 md:h-12 animate-spin text-blue-600" />{" "}
-                  <p className="mt-3 text-base md:text-lg font-semibold text-blue-700">
-                    解析中...
-                  </p>{" "}
-                </div>
-              )}
-              {/* 解析済み/未解析 ボタン */}
-              {!isFetchingResult &&
-                !isAnalyzing &&
-                !fetchError &&
-                !hasAnalyzedBefore && ( // <<< !hasAnalyzedBefore を追加
-                  <div className="mt-4 text-center text-gray-600">
-                    {hasAnalyzedBefore ? (
-                      <Button onClick={onShowAnalysis}> 解析結果を表示 </Button>
-                    ) : (
-                      <>
+          {/* --- 解析結果がある場合は AnalysisResultDisplay を表示 --- */}
+          {!isFetchingResult &&
+            !fetchError && ( // 取得中でもエラーでもない場合
+              <>
+                {analysisResult && modalViewMode === "analysis" ? (
+                  // 解析結果があり、解析結果表示モードの場合
+                  <AnalysisResultDisplay
+                    analysisResult={analysisResult}
+                    editingIndex={editingIndex}
+                    editingData={editingData}
+                    onEditStart={onEditStart}
+                    onEditChange={onEditChange}
+                    onEditComplete={onEditComplete}
+                    onEditCancel={onEditCancel}
+                    isSaving={isSaving}
+                    generatingQuizId={generatingQuizId}
+                    onGenerateQuiz={onGenerateQuiz}
+                    availableRegionTags={availableRegionTags}
+                    availableFeatureTags={availableFeatureTags}
+                  />
+                ) : (
+                  <div className="flex flex-col justify-center items-center w-full h-full relative">
+                    {" "}
+                    {/* relative追加 */}
+                    {/* 画像 */}
+                    <img
+                      src={`${BACKEND_URL}/${currentImage.filename}`}
+                      alt={`Selected ${currentImage.id}`}
+                      className={`max-w-full w-full h-auto object-contain rounded ${
+                        isAnalyzing ? "opacity-50" : ""
+                      }`}
+                      style={{ maxHeight: "calc(90vh - 15rem)" }} // 画像の高さを制限 (ヘッダ/フッタ分考慮)
+                    />
+                    {/* 解析中オーバーレイ */}
+                    {isAnalyzing && (
+                      <div className="absolute inset-0 flex flex-col justify-center items-center bg-white/80 rounded">
+                        <Loader2 className="w-10 h-10 md:w-12 md:h-12 animate-spin text-blue-600" />
+                        <p className="mt-3 text-base md:text-lg font-semibold text-blue-700">
+                          解析中...
+                        </p>
+                      </div>
+                    )}
+                    {/* 解析ボタン (解析中でなく、解析済みフラグもfalseの場合) */}
+                    {!isAnalyzing && !hasAnalyzedBefore && (
+                      <div className="mt-4 text-center text-gray-600">
                         <p className="mb-2">まだ解析されていません。</p>
                         <Button onClick={onAnalyze} disabled={isAnalyzing}>
-                          {" "}
                           {isAnalyzing ? (
                             <Loader2 className="w-5 h-5 animate-spin" />
                           ) : (
                             "この画像を解析する"
                           )}
                         </Button>
-                      </>
+                      </div>
                     )}
                   </div>
                 )}
-            </div>
-          )}
-        </div>
-
-        {/* --- 下部ボタン群 --- */}
+              </>
+            )}
+        </div>{" "}
+        {/* End Content Area */}
+        {/* --- 下部ボタン群 (モーダル全体のフッターとして配置) --- */}
         <div className="mt-4 pt-4 border-t flex justify-center items-center space-x-4 flex-shrink-0">
           <Button
             variant="destructive"
@@ -195,39 +220,54 @@ const ImageModal: React.FC<ImageModalProps> = ({
             {" "}
             削除{" "}
           </Button>
-          {!isLoading ? (
+          {/* ローディング中でない場合のみ、状況に応じたボタンを表示 */}
+          {!isLoading && (
             <>
-              {analysisResult ? (
-                <Button variant="outline" onClick={onBackToImage}>
-                  {" "}
-                  画像表示に戻る{" "}
-                </Button>
-              ) : hasAnalyzedBefore ? (
-                <Button onClick={onShowAnalysis}> 解析結果を表示 </Button>
+              {analysisResult ? ( // 解析結果が存在する場合
+                modalViewMode === "analysis" ? (
+                  // 解析結果表示中 => 「画像を表示」ボタン
+                  <Button variant="outline" onClick={onShowImage}>
+                    {" "}
+                    画像を表示{" "}
+                  </Button>
+                ) : (
+                  // 画像表示中 => 「解析結果を表示」ボタン
+                  <Button variant="outline" onClick={onShowAnalysis}>
+                    {" "}
+                    解析結果を表示{" "}
+                  </Button>
+                )
               ) : (
-                <Button
-                  className="bg-blue-600 hover:bg-blue-700"
-                  onClick={onAnalyze}
-                  disabled={isAnalyzing}
-                >
-                  {" "}
-                  解析{" "}
-                </Button>
+                // 解析結果が存在しない場合
+                !hasAnalyzedBefore && ( // まだ解析されたことがない場合のみ「解析」ボタン
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700"
+                    onClick={onAnalyze}
+                  >
+                    {" "}
+                    解析{" "}
+                  </Button>
+                )
               )}
             </>
-          ) : (
+          )}
+
+          {/* ローディング中の表示 */}
+          {isLoading && (
             <Button variant="outline" disabled>
               {isFetchingResult
                 ? "取得中..."
                 : isAnalyzing
                 ? "解析中..."
-                : "保存中..."}
+                : isSaving
+                ? "保存中..."
+                : "問題生成中..."}
               <Loader2 className="ml-2 w-4 h-4 animate-spin" />
             </Button>
           )}
         </div>
-      </div>
-
+      </div>{" "}
+      {/* End Modal Body */}
       {/* --- 右矢印 --- */}
       <button
         onClick={onNext}

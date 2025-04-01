@@ -4,8 +4,61 @@ import ImageUpload from "./components/ImageUpload";
 import ImageList from "./components/ImageList";
 import ImageModal from "./components/ImageModal/ImageModal";
 import * as api from "./services/api";
-import { ImageData, HeritageData, HeritageResponse } from "./types";
+import {
+  ImageData,
+  HeritageData,
+  HeritageResponse,
+  ModalViewMode,
+} from "./types";
 import "./App.css";
+
+const REGION_TAGS: string[] = [
+  "アジア",
+  "ヨーロッパ",
+  "アフリカ",
+  "北アメリカ",
+  "南アメリカ",
+  "オセアニア",
+  // 必要なら他の地域も追加 (例: "東アジア", "西ヨーロッパ"...)
+];
+
+const FEATURE_TAGS: string[] = [
+  "宗教建築",
+  "キリスト教建築",
+  "イスラム建築",
+  "仏教建築",
+  "ヒンドゥー教建築",
+  "神社建築",
+  "その他宗教建築",
+  "宮殿・邸宅",
+  "城郭・要塞",
+  "遺跡・考古学的遺跡",
+  "歴史的都市・集落",
+  "文化的景観",
+  "産業遺産",
+  "交通遺産",
+  "庭園・公園",
+  "古墳・墓所",
+  "記念建造物",
+  "岩絵・壁画",
+  "負の遺産",
+  "山岳・山脈",
+  "火山・火山地形",
+  "森林",
+  "砂漠",
+  "河川・湖沼",
+  "湿地・湿原",
+  "氷河・氷床・フィヨルド",
+  "海岸・崖",
+  "島嶼",
+  "海洋生態系",
+  "サンゴ礁",
+  "カルスト地形・洞窟",
+  "滝",
+  "特殊な地形・地質",
+  "化石産地",
+  "国立公園・自然保護区",
+];
 
 const App: React.FC = () => {
   // --- State定義 (Appコンポーネントで管理する主要なState) ---
@@ -29,6 +82,9 @@ const App: React.FC = () => {
   const [hasAnalyzedBefore, setHasAnalyzedBefore] = useState<boolean>(false);
   const [fetchedDataCache, setFetchedDataCache] =
     useState<HeritageResponse | null>(null);
+  const [generatingQuizId, setGeneratingQuizId] = useState<number | null>(null);
+  const [generatedQuizData, setGeneratedQuizData] = useState<any>(null);
+  const [modalViewMode, setModalViewMode] = useState<ModalViewMode>("image");
 
   // --- API呼び出し関数 (useCallbackでメモ化) ---
   const fetchImages = useCallback(async () => {
@@ -47,26 +103,37 @@ const App: React.FC = () => {
     setAccordionDefaultValue([]);
     setHasAnalyzedBefore(false);
     setFetchedDataCache(null);
+    setModalViewMode("image");
     try {
       const data = await api.fetchAnalysisResultAPI(imageId);
+      console.log(
+        "App.tsx: Raw data received from fetchAnalysisResultAPI:",
+        JSON.stringify(data, null, 2)
+      );
       if (data.content && data.content.length > 0) {
+        console.log("App.tsx: Content found, setting hasAnalyzedBefore=true");
         setAnalysisResult(data);
         setFetchedDataCache(data);
         setAccordionDefaultValue(
           data.content.map((_, index) => `item-${index}`)
         );
         setHasAnalyzedBefore(true);
+        setModalViewMode("analysis");
       } else {
+        console.log(
+          "App.tsx: No content found, setting hasAnalyzedBefore=false"
+        );
         setHasAnalyzedBefore(false);
+        setModalViewMode("image");
       }
     } catch (error: any) {
-      console.error("解析結果取得エラー:", error.message);
-      // 404かどうかなどを判定してエラー表示
+      console.error("App.tsx: Error in fetchAnalysisResult:", error.message);
       if (!error.message?.includes("404")) {
         setFetchError("解析結果の取得に失敗しました。");
       }
       setHasAnalyzedBefore(false);
     } finally {
+      console.log("App.tsx: Setting isFetchingResult=false");
       setIsFetchingResult(false);
     }
   }, []);
@@ -84,6 +151,8 @@ const App: React.FC = () => {
       setEditingData(null);
       setIsAnalyzing(false);
       setIsSaving(false);
+      setGeneratedQuizData(null);
+      setGeneratingQuizId(null);
     } else {
       // モーダル閉じるときのリセット
       setAnalysisResult(null);
@@ -91,6 +160,12 @@ const App: React.FC = () => {
       setFetchError(null);
       setHasAnalyzedBefore(false);
       setFetchedDataCache(null);
+      setModalViewMode("image");
+      setEditingIndex(null);
+      setEditingData(null);
+      setIsSaving(false);
+      setGeneratedQuizData(null);
+      setGeneratingQuizId(null);
     }
   }, [selectedIndex, images, fetchAnalysisResult]); // 依存配列を修正
 
@@ -139,11 +214,10 @@ const App: React.FC = () => {
     const imageId = images[selectedIndex].id;
     setIsAnalyzing(true);
     setFetchError(null);
+    setModalViewMode("image");
     try {
-      // APIを呼び出し (レスポンスは使わない場合)
       await api.analyzeAndSaveHeritageAPI(imageId);
       console.log("解析＆DB保存/更新 成功");
-      // 再取得して表示更新
       await fetchAnalysisResult(imageId);
     } catch (error: any) {
       console.error("解析エラー:", error.message);
@@ -153,26 +227,15 @@ const App: React.FC = () => {
     }
   };
 
-  const handleBackToImage = () => {
-    setAnalysisResult(null);
-    setAccordionDefaultValue([]);
+  const handleShowImageInModal = () => {
+    console.log("App.tsx: Setting modalViewMode to 'image'");
+    setModalViewMode("image");
     setEditingIndex(null);
     setEditingData(null);
   };
-
-  const showAnalysisResultFromCache = () => {
-    if (fetchedDataCache) {
-      setAnalysisResult(fetchedDataCache);
-      setAccordionDefaultValue(
-        fetchedDataCache.content.map((_, idx) => `item-${idx}`)
-      );
-      setFetchError(null);
-      setEditingIndex(null);
-      setEditingData(null);
-    } else if (selectedIndex !== null) {
-      // フォールバック
-      fetchAnalysisResult(images[selectedIndex].id);
-    }
+  const handleShowAnalysisInModal = () => {
+    console.log("App.tsx: Setting modalViewMode to 'analysis'");
+    setModalViewMode("analysis");
   };
 
   const prevImage = () => {
@@ -208,30 +271,41 @@ const App: React.FC = () => {
     setEditingData(data);
   };
 
-  const handleEditComplete = async (index: number) => {
-    // index は使わないかも (editingData に基づくため)
-    if (!editingData || selectedIndex === null || isSaving) return;
-    const imageId = images[selectedIndex].id;
-    const currentContent =
-      fetchedDataCache?.content || analysisResult?.content || [];
-    const newContent = currentContent.map((item, idx) =>
-      idx === editingIndex ? editingData : item
-    );
-    const updatedAnalysisData: HeritageResponse = { content: newContent };
+  const handleEditComplete = async () => {
+    if (!editingData || !editingData.id || isSaving) return;
+    const heritageId = editingData.id;
+    const dataToUpdate: Omit<HeritageData, "id"> = {
+      title: editingData.title,
+      description: editingData.description,
+      summary: editingData.summary,
+      simple_summary: editingData.simple_summary,
+      criteria: editingData.criteria,
+      unesco_tag: editingData.unesco_tag,
+      country: editingData.country,
+      region: editingData.region,
+      feature: editingData.feature,
+    };
 
     setIsSaving(true);
     setFetchError(null);
     try {
-      const savedData = await api.updateHeritageAPI(
-        imageId,
-        updatedAnalysisData
+      const updatedHeritage = await api.updateSingleHeritageAPI(
+        heritageId,
+        dataToUpdate
       );
-      console.log("編集内容のDB保存成功", savedData);
-      setAnalysisResult(savedData);
-      setFetchedDataCache(savedData); // キャッシュも更新
-      setAccordionDefaultValue(
-        savedData.content.map((_, idx) => `item-${idx}`)
-      );
+      console.log("編集内容のDB保存成功", updatedHeritage);
+      const updateState = (
+        prev: HeritageResponse | null
+      ): HeritageResponse | null => {
+        if (!prev) return null;
+        // content 配列から該当idの要素を更新後のデータで置き換える
+        const newContent = prev.content.map((item) =>
+          item.id === updatedHeritage.id ? updatedHeritage : item
+        );
+        return { ...prev, content: newContent };
+      };
+      setAnalysisResult(updateState);
+      setFetchedDataCache(updateState);
       setEditingIndex(null);
       setEditingData(null);
     } catch (error: any) {
@@ -245,6 +319,30 @@ const App: React.FC = () => {
   const handleEditCancel = () => {
     setEditingIndex(null);
     setEditingData(null);
+  };
+
+  const handleGenerateQuiz = async (heritageId: number) => {
+    console.log(`App.tsx: handleGenerateQuiz called for ID: ${heritageId}`);
+    if (generatingQuizId !== null) return; // すでに生成中なら何もしない
+
+    setGeneratingQuizId(heritageId); // 生成開始状態にする
+    setFetchError(null);
+    setGeneratedQuizData(null); // 前回の結果をクリア
+
+    try {
+      console.log("App.tsx: Calling generateQuizAPI...");
+      const quizData = await api.generateQuizAPI(heritageId);
+      console.log("App.tsx: Quiz generation successful:", quizData);
+      setGeneratedQuizData(quizData); // 生成されたクイズデータをstateに保存
+      // 必要であればここでユーザーに通知 (例: alert, toast)
+      alert("問題を作成しました！(内容はコンソールまたは表示エリアを確認)");
+    } catch (error: any) {
+      console.error("App.tsx: Error during quiz generation:", error);
+      setFetchError(`問題の作成中にエラーが発生しました: ${error.message}`);
+    } finally {
+      console.log("App.tsx: Setting generatingQuizId=null");
+      setGeneratingQuizId(null); // 生成終了状態にする
+    }
   };
 
   // --- レンダリング ---
@@ -285,15 +383,19 @@ const App: React.FC = () => {
         fetchError={fetchError}
         hasAnalyzedBefore={hasAnalyzedBefore}
         onAnalyze={handleAnalyzeAndSave}
-        onShowAnalysis={showAnalysisResultFromCache}
-        onBackToImage={handleBackToImage}
+        modalViewMode={modalViewMode}
+        onShowImage={handleShowImageInModal}
+        onShowAnalysis={handleShowAnalysisInModal}
         editingIndex={editingIndex}
         editingData={editingData}
         onEditStart={handleEditStart}
         onEditChange={handleEditChange} // 編集フォームコンポーネントに渡す
         onEditComplete={handleEditComplete}
         onEditCancel={handleEditCancel}
-        accordionDefaultValue={accordionDefaultValue}
+        generatingQuizId={generatingQuizId} // <<< 追加
+        onGenerateQuiz={handleGenerateQuiz}
+        availableRegionTags={REGION_TAGS}
+        availableFeatureTags={FEATURE_TAGS}
       />
     </div>
   );

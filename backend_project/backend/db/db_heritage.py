@@ -1,16 +1,22 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 from .models import HeritageModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 async def create_heritage(db: AsyncSession, image_id: int, heritage_data: Dict[str, Any]) -> HeritageModel:
     new_heritage = HeritageModel(
         image_id=image_id,
         title=heritage_data.get("title"),
         description=heritage_data.get("description"),
+        summary=heritage_data.get("summary"),
+        simple_summary=heritage_data.get("simple_summary"),
         criteria=heritage_data.get("criteria"),
+        unesco_tag=heritage_data.get("unesco_tag"),
+        country=heritage_data.get("country"),
+        region=heritage_data.get("region"),
+        feature=heritage_data.get("feature"),
     )
     db.add(new_heritage)
     try:
@@ -28,7 +34,13 @@ async def create_multiple_heritages(db: AsyncSession, image_id: int, heritage_da
             image_id=image_id,
             title=heritage_data.get("title"),
             description=heritage_data.get("description"),
+            summary=heritage_data.get("summary"),
+            simple_summary=heritage_data.get("simple_summary"),
             criteria=heritage_data.get("criteria"),
+            unesco_tag=heritage_data.get("unesco_tag"),
+            country=heritage_data.get("country"),
+            region=heritage_data.get("region"),
+            feature=heritage_data.get("feature"),
         )
         db.add(new_heritage)
         new_heritages.append(new_heritage)
@@ -65,34 +77,29 @@ async def delete_heritages_by_image_id(db: AsyncSession, image_id: int) -> int:
     print(f"Attempted to delete heritages for image_id {image_id}. Rows affected: {deleted_count}")
     return deleted_count
 
-async def update_heritages(db: AsyncSession, image_id: int, heritages_data: List[Dict[str, Any]]) -> List[HeritageModel]:
-    updated_heritages = []
+
+async def get_heritage_by_id(db: AsyncSession, heritage_id: int) -> Optional[HeritageModel]:
+    result = await db.execute(select(HeritageModel).where(HeritageModel.id == heritage_id))
+    heritage = result.scalars().first()
+    if not heritage:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Heritage not found")
+    return heritage
+
+async def update_single_heritage(db: AsyncSession, heritage_id: int, heritage_update_data: Dict[str, Any]) -> Optional[HeritageModel]:
+    heritage = await get_heritage_by_id(db, heritage_id)
+    if not heritage:
+        return None
+
+    for key, value in heritage_update_data.items():
+        if hasattr(heritage, key):
+            setattr(heritage, key, value)
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid field: {key}")
     try:
-        await delete_heritages_by_image_id(db, image_id)
-        for heritage_data in heritages_data:
-            if not heritage_data.get("title"):
-                raise HTTPException(status_code=400, detail=f"Title is required.")
-
-            db_heritage = HeritageModel(
-                image_id=image_id,
-                title=heritage_data.get("title"),
-                description=heritage_data.get("description"),
-                criteria=heritage_data.get("criteria")
-            )
-            db.add(db_heritage)
-            updated_heritages.append(db_heritage)
-
+        db.add(heritage)
         await db.commit()
-        for db_h in updated_heritages:
-            await db.refresh(db_h)
-
-        print(f"Successfully updated heritages for image_id {image_id}")
-        return updated_heritages
-
-    except HTTPException as http_exc:
-        await db.rollback()
-        raise http_exc
+        await db.refresh(heritage)
+        return heritage
     except Exception as e:
         await db.rollback()
-        print(f"Error updating heritages: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update heritage data in database.")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"DB commit failed: {str(e)}")

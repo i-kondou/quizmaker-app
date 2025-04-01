@@ -1,5 +1,10 @@
 // src/services/api.ts
-import { ImageData, HeritageResponse, HeritageData } from "../types"; // 型定義をインポート
+import {
+  ImageData,
+  HeritageResponse,
+  HeritageData,
+  HeritageWithId,
+} from "../types"; // 型定義をインポート
 
 const BACKEND_URL = "http://localhost:8000";
 
@@ -83,9 +88,40 @@ export const updateHeritageAPI = async (
   return await response.json();
 };
 
-export const fetchAllHeritagesAPI = async (): Promise<HeritageData[]> => {
+export const fetchAllHeritagesAPI = async (): Promise<HeritageWithId[]> => {
   const response = await fetch(`${BACKEND_URL}/heritage/all`);
   await handleApiResponse(response, "世界遺産データの取得に失敗しました");
-  const data: HeritageData[] = await response.json();
+  const data: HeritageWithId[] = await response.json();
   return data;
+};
+
+export const fetchHeritageDetailAPI = async (
+  heritageId: number
+): Promise<HeritageWithId> => {
+  const response = await fetch(`${BACKEND_URL}/heritage/detail/${heritageId}`);
+  await handleApiResponse(response, "世界遺産詳細データの取得に失敗しました");
+  const data: HeritageWithId = await response.json();
+  return data;
+};
+
+export const updateSingleHeritageAPI = async (
+  heritageId: number,
+  data: Omit<HeritageData, "id">
+): Promise<HeritageWithId> => {
+  const response = await fetch(`${BACKEND_URL}/heritage/update/${heritageId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  await handleApiResponse(response, "世界遺産データの更新に失敗しました");
+  return await response.json();
+};
+
+export const generateQuizAPI = async (heritageId: number): Promise<any> => {
+  const response = await fetch(`${BACKEND_URL}/heritage/quiz/${heritageId}`, {
+    method: "POST",
+  });
+  await handleApiResponse(response, "クイズの生成に失敗しました");
+  const quizData = await response.json();
+  return quizData;
 };
