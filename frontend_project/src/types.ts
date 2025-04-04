@@ -27,3 +27,18 @@ export interface HeritageWithId extends HeritageData {
 }
 
 export type ModalViewMode = "image" | "analysis";
+
+export type DetailViewMode = "detailsOnly" | "detailsAndQuiz";
+
+export interface QuizItem {
+  question: string;
+  answer: string;
+  options: string[];
+}
+
+export interface QuizData extends QuizItem {
+  id: number;
+  heritage_id: number;
+}
+
+export type QuizUpdateData = Omit<QuizData, "id" | "heritage_id">;

@@ -1,10 +1,11 @@
-// src/services/api.ts
 import {
   ImageData,
   HeritageResponse,
   HeritageData,
   HeritageWithId,
-} from "../types"; // 型定義をインポート
+  QuizData,
+  QuizUpdateData,
+} from "../types";
 
 const BACKEND_URL = "http://localhost:8000";
 
@@ -118,10 +119,30 @@ export const updateSingleHeritageAPI = async (
 };
 
 export const generateQuizAPI = async (heritageId: number): Promise<any> => {
-  const response = await fetch(`${BACKEND_URL}/heritage/quiz/${heritageId}`, {
+  const response = await fetch(`${BACKEND_URL}/quiz/generate/${heritageId}`, {
     method: "POST",
   });
   await handleApiResponse(response, "クイズの生成に失敗しました");
-  const quizData = await response.json();
-  return quizData;
+  return await response.json();
+};
+
+export const fetchQuizzesByHeritageIdAPI = async (
+  heritageId: number
+): Promise<QuizData[]> => {
+  const response = await fetch(`${BACKEND_URL}/quiz/list/${heritageId}`); // GET リクエスト
+  await handleApiResponse(response, "クイズリストの取得に失敗しました");
+  return await response.json(); // List[QuizSchema] が返る想定
+};
+
+export const updateSingleQuizAPI = async (
+  quizId: number,
+  data: QuizUpdateData
+): Promise<QuizData> => {
+  const response = await fetch(`${BACKEND_URL}/quiz/update/${quizId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  await handleApiResponse(response, "クイズ情報の更新に失敗しました");
+  return await response.json();
 };

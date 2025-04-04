@@ -14,14 +14,6 @@ class ImageDisplay(BaseModel):
         from_attributes=True
     )
 
-class HeritageItemPayload(BaseModel):
-    title: str
-    description: str
-    criteria: List[int]
-
-class HeritageItemResponse(BaseModel):
-    content: List[HeritageItemPayload]
-
 class HeritageSchema(BaseModel):
     id: int
     image_id: int
@@ -49,3 +41,20 @@ class HeritageUpdateSchema(BaseModel):
     country: Optional[List[str]] = None
     region: Optional[List[str]] = None
     feature: Optional[List[str]] = None
+
+class QuizSchema(BaseModel):
+    id: int
+    heritage_id: int
+    question: str
+    options: List[str]
+    answer: str
+    model_config = ConfigDict(from_attributes=True)
+
+class QuizListResponseSchema(BaseModel):
+    content: List[QuizSchema]
+    model_config = ConfigDict(from_attributes=True)
+
+class QuizUpdateSchema(BaseModel):
+    question: str
+    options: List[str]
+    answer: str

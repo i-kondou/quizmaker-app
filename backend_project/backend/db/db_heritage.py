@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import delete, update
+from sqlalchemy import delete, update, func as sql_func
 from .models import HeritageModel
 from typing import List, Dict, Any, Optional
 
@@ -103,3 +103,15 @@ async def update_single_heritage(db: AsyncSession, heritage_id: int, heritage_up
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"DB commit failed: {str(e)}")
+
+async def get_all_heritages_except_id(db: AsyncSession, exclude_id: int) -> List[HeritageModel]:
+    """指定されたID以外のすべての世界遺産データを取得する"""
+    stmt = select(HeritageModel).where(HeritageModel.id != exclude_id).order_by(sql_func.random())
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+async def get_all_heritages(db: AsyncSession) -> List[HeritageModel]:
+     """すべての世界遺産データを取得する"""
+     stmt = select(HeritageModel).order_by(HeritageModel.title.asc())
+     result = await db.execute(stmt)
+     return result.scalars().all()
