@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox"; // Checkbox をインポート
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -24,59 +24,11 @@ import {
 } from "../services/api";
 import { toRomanNumeral } from "../utils/helpers";
 import QuizDisplay from "../components/QuizDisplay";
+import { REGION_TAGS, FEATURE_TAGS } from "../../constants";
 
 interface HeritageWithId extends HeritageData {
   id: number;
 }
-
-// --- タグ候補リスト (このファイルで定義 or 外部から import) ---
-// App.tsx と同じリストを使うのが望ましい
-const REGION_TAGS: string[] = [
-  "アジア",
-  "ヨーロッパ",
-  "アフリカ",
-  "北アメリカ",
-  "南アメリカ",
-  "オセアニア",
-];
-const FEATURE_TAGS: string[] = [
-  "宗教建築",
-  "キリスト教建築",
-  "イスラム建築",
-  "仏教建築",
-  "ヒンドゥー教建築",
-  "神社建築",
-  "その他宗教建築",
-  "宮殿・邸宅",
-  "城郭・要塞",
-  "遺跡・考古学的遺跡",
-  "歴史的都市・集落",
-  "文化的景観",
-  "産業遺産",
-  "交通遺産",
-  "庭園・公園",
-  "古墳・墓所",
-  "記念建造物",
-  "岩絵・壁画",
-  "負の遺産",
-  "山岳・山脈",
-  "火山・火山地形",
-  "森林",
-  "砂漠",
-  "河川・湖沼",
-  "湿地・湿原",
-  "氷河・氷床・フィヨルド",
-  "海岸・崖",
-  "島嶼",
-  "海洋生態系",
-  "サンゴ礁",
-  "カルスト地形・洞窟",
-  "滝",
-  "特殊な地形・地質",
-  "化石産地",
-  "国立公園・自然保護区",
-];
-// --- タグ候補リストここまで ---
 
 const HeritageDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -123,7 +75,6 @@ const HeritageDetailPage: React.FC = () => {
     let quizData: QuizData[] | [];
 
     try {
-      // fetchHeritageDetailAPI は HeritageWithId (id含む) を返すと想定
       heritageData = await fetchHeritageDetailAPI(heritageId);
       setHeritage(heritageData);
     } catch (err: any) {
@@ -157,29 +108,22 @@ const HeritageDetailPage: React.FC = () => {
   // --- 編集関連ハンドラ ---
   const handleEditToggle = () => {
     if (!isEditing && heritage) {
-      // 編集開始時に現在のデータを編集用stateにコピー
       setEditedData({ ...heritage });
     } else {
-      // キャンセル時に編集用stateをリセット
       setEditedData(null);
     }
     setIsEditing(!isEditing);
     setError(null);
   };
-
-  // 編集フォームの入力値を editedData state に反映
   const handleEditDataChange = (
-    // 更新対象のフィールド名
-    field: keyof Omit<HeritageData, "id">, // id 以外のキー
-    // 新しい値 (型はフィールドによる)
+    field: keyof Omit<HeritageData, "id">,
     value: string | number[] | string[] | null
   ) => {
     setEditedData((prev) => (prev ? { ...prev, [field]: value } : null));
   };
 
-  // タグ(チェックボックス)用ハンドラ
   const handleTagChange = (
-    tagType: "region" | "feature", // 対象のタグフィールド名
+    tagType: "region" | "feature",
     tag: string,
     isChecked: boolean | "indeterminate"
   ) => {
@@ -201,26 +145,24 @@ const HeritageDetailPage: React.FC = () => {
     setIsSaving(true);
     setError(null);
     try {
-      // APIに送るデータ (id を除く)
       const dataToSave: Omit<HeritageData, "id"> = {
         title: editedData.title,
         description: editedData.description,
         summary: editedData.summary,
         simple_summary: editedData.simple_summary,
         criteria: editedData.criteria,
-        unesco_tag: editedData.unesco_tag, // unesco_tag も更新対象にするか確認
+        unesco_tag: editedData.unesco_tag,
         country: editedData.country,
-        region: editedData.region, // area -> region に変更した場合はここも region
+        region: editedData.region,
         feature: editedData.feature,
       };
       const updatedHeritage = await updateSingleHeritageAPI(
         heritageId,
         dataToSave
       );
-      setHeritage(updatedHeritage); // 表示データを更新
-      // setEditedData(updatedHeritage); // 編集モード解除するので不要かも
-      setIsEditing(false); // 編集モード解除
-      setEditedData(null); // 編集データリセット
+      setHeritage(updatedHeritage);
+      setIsEditing(false);
+      setEditedData(null);
     } catch (err: any) {
       setError(err.message || "更新に失敗しました");
     } finally {
@@ -228,7 +170,7 @@ const HeritageDetailPage: React.FC = () => {
     }
   };
 
-  // --- 問題作成ハンドラ (変更なし) ---
+  // --- 問題作成ハンドラ ---
   const handleGenerateQuiz = async () => {
     if (!heritageId || isGeneratingQuiz) return;
     setIsGeneratingQuiz(true);
@@ -244,6 +186,7 @@ const HeritageDetailPage: React.FC = () => {
       setQuizError(err.message || "問題作成に失敗しました");
     } finally {
       setIsGeneratingQuiz(false);
+      setIsLoadingQuizzes(false);
     }
   };
 
@@ -332,7 +275,7 @@ const HeritageDetailPage: React.FC = () => {
   }
 
   // 編集フォーム用の値 (nullチェック)
-  const currentEditData = isEditing ? editedData : heritage; // 表示はheritage, 編集はeditedData
+  const currentEditData = isEditing ? editedData : heritage;
   const descriptionValue =
     (isEditing ? editedData?.description : heritage?.description) ?? "";
   const summaryValue =
@@ -464,7 +407,6 @@ const HeritageDetailPage: React.FC = () => {
 
           <CardContent className="space-y-4">
             {" "}
-            {/* space-y追加 */}
             {/* --- 表示/編集: 要約 --- */}
             <div>
               <Label htmlFor="edit-summary" className="text-sm font-medium">

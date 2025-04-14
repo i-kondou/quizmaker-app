@@ -168,7 +168,7 @@ async def generate_quiz(heritage_id: int, db: AsyncSession = Depends(get_db)):
 
     for quiz in response["content"]:
         if quiz.get("question") and quiz.get("options") and quiz.get("answer"):
-            quiz["quiestion"] = f"「{record.title}」に関する問題です．" + quiz["question"]
+            quiz["question"] = f"「{record.title}」に関する問題です．" + quiz["question"]
 
     """ 世界遺産のデータに基づき，ルールベースでクイズを生成 """
     target_heritage = await db_heritage.get_heritage_by_id(db, heritage_id)

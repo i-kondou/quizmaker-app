@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import ImageManagementPage from "./App";
+import ImageManagementPage from "./pages/ImageManagementPage";
 import HeritageListPage from "./pages/HeritageListPage";
 import HeritageDetailPage from "./pages/HeritageDetailPage";
 import Navigation from "./components/Navigateion";

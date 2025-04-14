@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from ..db.database import get_db
-from ..db import db_image, db_heritage
+from ..db import db_image, db_heritage, db_quiz
 from ..db.models import HeritageModel
 from .schemas import HeritageSchema, HeritageUpdateSchema, HeritageListResponseSchema
 import base64
@@ -14,6 +14,9 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
 from typing import List, Optional
 from typing_extensions import Annotated, TypedDict
+
+class HeritageSchemaWithHasQuiz(HeritageSchema):
+    has_quiz: bool
 
 router = APIRouter(
     prefix="/heritage",
@@ -111,9 +114,16 @@ async def confirm_ocr_image(image_id: int, db: AsyncSession = Depends(get_db)):
 
     return {"content": heritage_records}
 
-@router.get("/all", response_model=List[HeritageSchema])
+@router.get("/all", response_model=List[HeritageSchemaWithHasQuiz])
 async def get_all_heritages(db: AsyncSession = Depends(get_db)):
-    return await db_heritage.get_all_heritages(db)
+    heritages = await db_heritage.get_all_heritages(db)
+    if not heritages:
+        raise HTTPException(status_code=404, detail="No heritages found")
+    for heritage in heritages:
+        has_quiz_flag = len(heritage.quizzes) > 0
+        print(f"Heritage ID: {heritage.id}, Has Quiz: {has_quiz_flag}")  # Debugging line
+
+    return heritages
 
 @router.get("/detail/{heritage_id}", response_model=HeritageSchema)
 async def get_heritage_detail_endpoint(heritage_id: int, db: AsyncSession = Depends(get_db)):

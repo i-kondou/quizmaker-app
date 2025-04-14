@@ -56,7 +56,6 @@ async def create_multiple_heritages(db: AsyncSession, image_id: int, heritage_da
 async def get_all_heritages(db: AsyncSession) -> List[HeritageModel]:
     stmt = select(HeritageModel)
     stmt = stmt.order_by(HeritageModel.title.asc())
-
     result = await db.execute(stmt)
     heritages = result.scalars().all()
     if not heritages:

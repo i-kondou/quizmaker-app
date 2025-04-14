@@ -26,6 +26,7 @@ class HeritageSchema(BaseModel):
     country: Optional[List[str]] = None
     region: Optional[List[str]] = None
     feature: Optional[List[str]] = None
+    quizzes: Optional[List[int]] = None
     model_config = ConfigDict(from_attributes=True)
 
 class HeritageListResponseSchema(BaseModel):
