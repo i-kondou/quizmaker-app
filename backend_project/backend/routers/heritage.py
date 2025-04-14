@@ -15,9 +15,6 @@ from langchain_core.messages import HumanMessage
 from typing import List, Optional
 from typing_extensions import Annotated, TypedDict
 
-class HeritageSchemaWithHasQuiz(HeritageSchema):
-    has_quiz: bool
-
 router = APIRouter(
     prefix="/heritage",
     tags=["heritage"],
@@ -85,7 +82,7 @@ async def preview_ocr_image(image_id: int, db: AsyncSession = Depends(get_db)):
     )
     strucutred_llm = llm.with_structured_output(HeritageResponse)
     try:
-        llm_response: HeritageResponse = strucutred_llm.invoke([message])
+        llm_response: HeritageResponse = await strucutred_llm.ainvoke([message])
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to process image with LLM")
 
@@ -114,15 +111,9 @@ async def confirm_ocr_image(image_id: int, db: AsyncSession = Depends(get_db)):
 
     return {"content": heritage_records}
 
-@router.get("/all", response_model=List[HeritageSchemaWithHasQuiz])
+@router.get("/all", response_model=List[HeritageSchema])
 async def get_all_heritages(db: AsyncSession = Depends(get_db)):
     heritages = await db_heritage.get_all_heritages(db)
-    if not heritages:
-        raise HTTPException(status_code=404, detail="No heritages found")
-    for heritage in heritages:
-        has_quiz_flag = len(heritage.quizzes) > 0
-        print(f"Heritage ID: {heritage.id}, Has Quiz: {has_quiz_flag}")  # Debugging line
-
     return heritages
 
 @router.get("/detail/{heritage_id}", response_model=HeritageSchema)
