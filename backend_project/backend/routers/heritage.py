@@ -53,6 +53,28 @@ class HeritageResponse(TypedDict):
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro")
 IMAGE_FORDER = os.getenv("IMAGE_FORDER", "backend/images")
 
+def check_region(tag: str) -> bool:
+    """指定されたタグが正しいかどうかを確認する"""
+    valid_tags = [
+        "アジア", "ヨーロッパ", "アフリカ", "北アメリカ", "南アメリカ", "オセアニア"
+    ]
+    return tag in valid_tags
+def check_feature(tag: str) -> bool:
+    """指定されたタグが正しいかどうかを確認する"""
+    valid_tags = [
+        "宗教建築", "キリスト教建築", "イスラム建築", "仏教建築", "ヒンドゥー教建築",
+        "神社建築", "その他宗教建築", "宮殿・邸宅", "城郭・要塞", "遺跡・考古学的遺跡",
+        "歴史的都市・集落", "文化的景観", "産業遺産", "交通遺産", "庭園・公園",
+        "古墳・墓所", "記念建造物", "岩絵・壁画", "負の遺産", "山岳・山脈",
+        "火山・火山地形", "森林", "砂漠", "河川・湖沼", "湿地・湿原",
+        "氷河・氷床・フィヨルド", "海岸・崖", "島嶼", "海洋生態系",
+        "サンゴ礁", "カルスト地形・洞窟", "滝",
+        "特殊な地形・地質",  # 追加
+        "化石産地",
+        # 他のタグも追加可能
+    ]
+    return tag in valid_tags
+
 
 @router.post("/preview/{image_id}", response_model=HeritageListResponseSchema)
 async def preview_ocr_image(image_id: int, db: AsyncSession = Depends(get_db)):
@@ -92,6 +114,13 @@ async def preview_ocr_image(image_id: int, db: AsyncSession = Depends(get_db)):
             if unesco_tag:
                 item["unesco_tag"] = unesco_tag
             item["image_id"] = image_id
+            item["region"] = item.get("region")
+            item["feature"] = item.get("feature")
+            if not check_region(item["region"]):
+                raise HTTPException(status_code=400, detail="Invalid region tag")
+            if not all(check_feature(tag) for tag in item["feature"]):
+                raise HTTPException(status_code=400, detail="Invalid feature tag")
+
 
     try:
         saved_heritages = await db_heritage.create_multiple_heritages(db, image_id, llm_response["content"])
