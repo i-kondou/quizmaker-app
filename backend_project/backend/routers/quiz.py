@@ -162,7 +162,7 @@ async def generate_quiz(heritage_id: int, db: AsyncSession = Depends(get_db)):
     )
     structured_llm = llm.with_structured_output(QuizResponse)
     try:
-        response: QuizResponse = structured_llm.invoke([message])
+        response: QuizResponse = await structured_llm.ainvoke([message])
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate quiz: {str(e)}")
 
