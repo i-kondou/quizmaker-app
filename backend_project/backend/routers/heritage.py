@@ -50,7 +50,7 @@ class HeritageItem(TypedDict):
 class HeritageResponse(TypedDict):
     content: List[HeritageItem]
 
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro")
+llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
 IMAGE_FORDER = os.getenv("IMAGE_FORDER", "backend/images")
 
 def check_region(tag: str) -> bool:

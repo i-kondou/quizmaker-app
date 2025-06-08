@@ -4,6 +4,7 @@ from sqlalchemy.future import select
 from sqlalchemy import delete, update
 from .models import QuizModel
 from typing import List, Dict, Any, Optional
+import random
 
 
 async def create_multiple_quizzes(db: AsyncSession, heritage_id: int, quiz_data_list: List[Dict[str, Any]]) -> List[QuizModel]:
@@ -69,3 +70,25 @@ async def update_quiz(db: AsyncSession, quiz_id: int, quiz_update_data: Dict[str
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"DB commit failed: {str(e)}")
+
+async def get_random_quizzes(db: AsyncSession, count: int) -> List[QuizModel]:
+    # 全てのクイズIDを取得
+    id_result = await db.execute(select(QuizModel.id))
+    all_quiz_ids = id_result.scalars().all()
+
+    if not all_quiz_ids:
+        return []
+
+    # ランダムにクイズIDを選択
+    num_to_select = min(count, len(all_quiz_ids))
+    if num_to_select <= 0:
+        return []
+    selected_ids = random.sample(all_quiz_ids, num_to_select)
+
+    # 選択したIDに基づいてクイズを取得
+    stmt = select(QuizModel).where(QuizModel.id.in_(selected_ids))
+    result = await db.execute(stmt)
+    quizzes = result.scalars().all()
+
+    random.shuffle(quizzes)
+    return quizzes

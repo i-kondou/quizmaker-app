@@ -30,7 +30,6 @@ export const fetchImagesAPI = async (): Promise<ImageData[]> => {
 
 // 画像アップロード
 export const uploadImageAPI = async (file: File): Promise<Response> => {
-  // 単純化のためResponseを返す
   const formData = new FormData();
   formData.append("image", file);
   const response = await fetch(`${BACKEND_URL}/image/upload`, {
@@ -38,7 +37,7 @@ export const uploadImageAPI = async (file: File): Promise<Response> => {
     body: formData,
   });
   await handleApiResponse(response, "画像のアップロードに失敗しました");
-  return response; // 成功時はResponseオブジェクトを返す
+  return response;
 };
 
 // 画像削除
@@ -89,6 +88,7 @@ export const updateHeritageAPI = async (
   return await response.json();
 };
 
+// 世界遺産一覧取得
 export const fetchAllHeritagesAPI = async (): Promise<HeritageWithId[]> => {
   const response = await fetch(`${BACKEND_URL}/heritage/all`);
   await handleApiResponse(response, "世界遺産データの取得に失敗しました");
@@ -96,6 +96,7 @@ export const fetchAllHeritagesAPI = async (): Promise<HeritageWithId[]> => {
   return data;
 };
 
+// 世界遺産詳細取得
 export const fetchHeritageDetailAPI = async (
   heritageId: number
 ): Promise<HeritageWithId> => {
@@ -105,6 +106,7 @@ export const fetchHeritageDetailAPI = async (
   return data;
 };
 
+// 世界遺産データ更新
 export const updateSingleHeritageAPI = async (
   heritageId: number,
   data: Omit<HeritageData, "id">
@@ -118,6 +120,7 @@ export const updateSingleHeritageAPI = async (
   return await response.json();
 };
 
+// 世界遺産データからクイズ生成
 export const generateQuizAPI = async (heritageId: number): Promise<any> => {
   const response = await fetch(`${BACKEND_URL}/quiz/generate/${heritageId}`, {
     method: "POST",
@@ -126,14 +129,16 @@ export const generateQuizAPI = async (heritageId: number): Promise<any> => {
   return await response.json();
 };
 
+// 世界遺産毎のクイズ取得
 export const fetchQuizzesByHeritageIdAPI = async (
   heritageId: number
 ): Promise<QuizData[]> => {
-  const response = await fetch(`${BACKEND_URL}/quiz/list/${heritageId}`); // GET リクエスト
+  const response = await fetch(`${BACKEND_URL}/quiz/list/${heritageId}`);
   await handleApiResponse(response, "クイズリストの取得に失敗しました");
-  return await response.json(); // List[QuizSchema] が返る想定
+  return await response.json();
 };
 
+// クイズ内容編集
 export const updateSingleQuizAPI = async (
   quizId: number,
   data: QuizUpdateData
@@ -144,5 +149,16 @@ export const updateSingleQuizAPI = async (
     body: JSON.stringify(data),
   });
   await handleApiResponse(response, "クイズ情報の更新に失敗しました");
+  return await response.json();
+};
+
+// ランダムクイズセット取得
+export const fetchRandomQuizSetAPI = async (
+  count: number
+): Promise<QuizData[]> => {
+  const response = await fetch(
+    `${BACKEND_URL}/quiz/challenge-set?count=${count}`
+  );
+  await handleApiResponse(response, "ランダムクイズセットの取得に失敗しました");
   return await response.json();
 };

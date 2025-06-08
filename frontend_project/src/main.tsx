@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ImageManagementPage from "./pages/ImageManagementPage";
 import HeritageListPage from "./pages/HeritageListPage";
 import HeritageDetailPage from "./pages/HeritageDetailPage";
+import QuizChallengePage from "./pages/QuizChallengePage";
 import Navigation from "./components/Navigateion";
 import "./index.css";
 
@@ -15,6 +16,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         <Route path="/" element={<ImageManagementPage />} />
         <Route path="/heritages" element={<HeritageListPage />} />
         <Route path="/heritages/:id" element={<HeritageDetailPage />} />
+        <Route path="/quiz/play" element={<QuizChallengePage />} />￥
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

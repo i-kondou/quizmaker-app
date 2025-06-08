@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from ..db.database import get_db
@@ -22,7 +22,7 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro")
+llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
 
 class QuizItem(TypedDict):
     question: Annotated[str, ..., "4択のクイズの問題文を作成してください"]
@@ -82,7 +82,7 @@ def find_distractors(
     processed_candidate_ids = set() # 処理済み候補ID
 
     # --- 優先度に基づいてダミー選択肢を検索 ---
-    # Tier 1: UNESCO一致 & 地域一致 & 特徴が類似 (例: 半分以上一致)
+    # Tier 1: UNESCO一致 & 地域一致 & 特徴が類似
     for cand in valid_candidates:
         if len(distractors_found) >= num_distractors: break
         if cand.id in processed_candidate_ids: continue
@@ -253,3 +253,14 @@ async def update_quiz_detail_endpoint(
     if updated_quiz is None:
         raise HTTPException(status_code=404, detail="Quiz not found")
     return updated_quiz
+
+@router.get("/challenge-set", response_model=List[QuizSchema])
+async def get_quiz_challenge_set(
+    count: int = Query(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+):
+    """データベース内の全てのクイズからランダムに指定された数を取得する"""
+    random_quizzes = await db_quiz.get_random_quizzes(db, count)
+    if not random_quizzes:
+        raise HTTPException(status_code=404, detail="No quizzes found")
+    return random_quizzes
