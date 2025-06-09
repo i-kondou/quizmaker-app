@@ -7,7 +7,7 @@ class ImageBase(BaseModel):
     timestamp: datetime
 
 class ImageDisplay(BaseModel):
-    imade_id: int = Field(..., alias="id")
+    image_id: int = Field(..., alias="id")
     filename: str
     timestamp: datetime
     model_config = ConfigDict(
